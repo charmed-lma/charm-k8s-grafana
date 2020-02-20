@@ -99,6 +99,8 @@ this README.
 References
 ----------
 
+1. [Grafana Docker Image Configuration](https://grafana.com/docs/grafana/latest/installation/docker/)
+
 Much of how this charm is architected is guided by the following classic
 references. It will do well for future contributors to read and take them to heart:
 
