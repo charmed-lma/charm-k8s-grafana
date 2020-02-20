@@ -1,0 +1,19 @@
+dist: bionic
+
+language: python
+
+python:
+    - "3.6"
+    - "3.7"
+    - "3.8"
+
+install:
+    - pip install -r test-requirements.txt
+    - pip install coveralls
+
+script:
+    - flake8 --config=.flake8
+    - pytest -c pytest.ini
+
+after_success:
+    - coveralls

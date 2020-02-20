@@ -1,0 +1,4 @@
+# https://flake8.pycqa.org/en/2.6.0/config.html
+[flake8]
+exclude = mod/*, lib/*, .tox
+ignore = E402

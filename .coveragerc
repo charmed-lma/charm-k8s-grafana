@@ -1,0 +1,11 @@
+# https://coverage.readthedocs.io/en/latest/config.html
+[run]
+branch = True
+source = src
+
+[report]
+include = src/*
+
+[html]
+directory=coverage-report
+title = Coverage for charm-k8s-grafana

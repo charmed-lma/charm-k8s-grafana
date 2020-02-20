@@ -1,0 +1,5 @@
+options:
+    advertised-port:
+        description: The port grafana will be listening on
+        type: int
+        default: 3000

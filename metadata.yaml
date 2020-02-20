@@ -1,0 +1,15 @@
+name: "charm-k8s-grafana"
+display-name: "k8s-grafana"
+summary: "Grafana Charm"
+maintainers:
+    - "Mark Maglana <mark.maglana@canonical.com>"
+description: |
+  Deploys and operates Grafana on Kubernetes
+tags:
+    - "application"
+series:
+    - "kubernetes"
+resources:
+    grafana-image:
+        type: oci-image
+        description: "Image used for the Grafana pod."
