@@ -9,6 +9,9 @@ tags:
     - "application"
 series:
     - "kubernetes"
+requires:
+  prometheus-api:
+    interface: prometheus-http-api
 resources:
     grafana-image:
         type: oci-image
