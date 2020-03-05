@@ -30,14 +30,14 @@ class Charm(CharmBase):
         # adapter and not directly with the framework.
         self.adapter = FrameworkAdapter(self.framework)
 
-        self.prometheus = http_interface.Client(self, 'prometheus-api')
+        self.prometheus_client = http_interface.Client(self, 'prometheus-api')
 
         # Bind event handlers to events
         event_handler_bindings = {
             self.on.start: self.on_start_delegator,
             self.on.config_changed: self.on_config_changed_delegator,
             self.on.upgrade_charm: self.on_upgrade_delegator,
-            self.prometheus.on.server_available:
+            self.prometheus_client.on.server_available:
                 self.on_prometheus_available_delegator,
         }
         for event, handler in event_handler_bindings.items():

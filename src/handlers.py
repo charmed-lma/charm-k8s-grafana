@@ -1,3 +1,4 @@
+import time
 from types import SimpleNamespace
 
 import sys
@@ -22,7 +23,7 @@ def _create_output_obj(dict_obj):
 def on_prometheus_available(server_details):
     # TODO: Do something here to reconfigure the pod and make Grafana
     #       be aware of prometheus as a data source.
-    pass
+    time.sleep(5)
 
 
 def on_start(event,

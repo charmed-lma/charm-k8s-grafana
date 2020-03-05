@@ -13,6 +13,9 @@ from k8s import (
 )
 
 
+#
+# Client
+#
 class ServerDetails:
 
     def __init__(self, host=None, port=None):
@@ -30,50 +33,6 @@ class ServerDetails:
     def port(self):
         return self._port
 
-
-#
-# Server
-#
-
-class NewClientEvent(EventBase):
-
-    def __init__(self, handle, relation):
-        super().__init__(handle)
-        self._server_details = "NewClientEvent"
-
-    @property
-    def server_details(self):
-        return self._server_details
-
-    def snapshot(self):
-        return {
-            'server_details': self.server_details
-        }
-
-    def restore(self, snapshot):
-        self._server_details = snapshot['server_details']
-
-
-class ServerEvents(EventsBase):
-    new_client = EventSource(NewClientEvent)
-
-
-class Server(Object):
-    on = ServerEvents()
-
-    def __init__(self, charm, relation_name):
-        super().__init__(charm, relation_name)
-
-        self.framework.observe(charm.on[relation_name].relation_joined,
-                               self.on_joined)
-
-    def on_joined(self, event):
-        self.on.new_client.emit("emmitted param")
-
-
-#
-# Client
-#
 
 class ServerAvailableEvent(EventBase):
 

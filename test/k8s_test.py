@@ -1,5 +1,6 @@
 import io
 import json
+import random
 import sys
 import unittest
 from unittest.mock import (
@@ -14,6 +15,7 @@ sys.path.append('src')
 from k8s import (
     APIServer,
     PodStatus,
+    ServiceSpec,
 )
 
 
@@ -43,6 +45,74 @@ class APIServerTest(unittest.TestCase):
 
         # Assert
         assert response == mock_response_dict
+
+
+class ServiceSpecTest(unittest.TestCase):
+
+    @patch('k8s.os', autospec=True, spec_set=True)
+    @patch('k8s.APIServer', autospec=True, spec_set=True)
+    def test_fetch_is_succesfull(
+            self,
+            mock_api_server_cls,
+            mock_os):
+        # Setup
+        app_name = f'{uuid4()}'
+        mock_model_name = f'{uuid4()}'
+        mock_os.environ = {
+            'JUJU_MODEL_NAME': mock_model_name,
+        }
+        mock_port = random.randint(1, 65535)
+        mock_cluster_ip = f'{uuid4()}'
+        mock_api_server = mock_api_server_cls.return_value
+        mock_api_server.get.return_value = {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "charm-k8s-prometheus",
+                "namespace": "lma",
+                "uid": "5e5684e0-5870-450e-ab9d-ff840e0b10fb",
+                "resourceVersion": "257015",
+                "creationTimestamp": "2020-02-21T06:40:34Z",
+                "labels": {
+                    "juju-app": "charm-k8s-prometheus"
+                },
+                "annotations": {
+                    "juju.io/model": "d3fb103b-515e-42c8-87f8-5ff26dd7a1e9"
+                }
+            },
+            "spec": {
+                "ports": [
+                    {
+                        "protocol": "TCP",
+                        "port": mock_port,
+                        "targetPort": 9090
+                    }
+                ],
+                "selector": {
+                    "juju-app": "charm-k8s-prometheus"
+                },
+                "clusterIP": f'{mock_cluster_ip}',
+                "type": "ClusterIP",
+                "sessionAffinity": "None"
+            },
+            "status": {
+                "loadBalancer": {
+                }
+            }
+        }
+
+        # Exercise
+        service_spec = ServiceSpec(app_name)
+        service_spec.fetch()
+
+        # Assert
+        assert mock_api_server.get.call_count == 1
+        assert mock_api_server.get.call_args == call(
+            f'/api/v1/namespaces/{mock_model_name}/services/{app_name}'
+        )
+
+        assert service_spec.host == mock_cluster_ip
+        assert service_spec.port == mock_port
 
 
 class PodStatusTest(unittest.TestCase):

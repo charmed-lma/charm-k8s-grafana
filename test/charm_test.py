@@ -42,12 +42,14 @@ class CharmTest(unittest.TestCase):
 
         return framework
 
+    @patch('charm.http_interface', spec_set=True, autospec=True)
     @patch('charm.handlers.on_config_changed', spec_set=True, autospec=True)
     @patch('charm.FrameworkAdapter', spec_set=True, autospec=True)
     def test__on_config_changed_delegator__it_blocks_until_pod_is_ready(
             self,
             mock_framework_adapter_cls,
-            mock_on_config_changed_handler):
+            mock_on_config_changed_handler,
+            mock_http_interface):
         # Setup
         mock_outputs = [
             SimpleNamespace(**dict(unit_status=object(), pod_is_ready=False)),
@@ -77,6 +79,7 @@ class CharmTest(unittest.TestCase):
     # spec_set=True ensures we don't define an attribute that is not in the
     # real object, autospec=True automatically copies the signature of the
     # mocked object to the mock.
+    @patch('charm.http_interface', spec_set=True, autospec=True)
     @patch('charm.handlers.on_start', spec_set=True, autospec=True)
     @patch('charm.GrafanaImageResource', spec_set=True, autospec=True)
     @patch('charm.FrameworkAdapter', spec_set=True, autospec=True)
@@ -84,7 +87,8 @@ class CharmTest(unittest.TestCase):
             self,
             mock_framework_adapter_cls,
             mock_prometheus_image_resource_cls,
-            mock_on_start_handler):
+            mock_on_start_handler,
+            mock_http_interface):
 
         # Setup
         mock_event = create_autospec(EventBase, spec_set=True)
@@ -118,6 +122,7 @@ class CharmTest(unittest.TestCase):
         assert mock_adapter.set_unit_status.call_args == \
             call(mock_output.unit_status)
 
+    @patch('charm.http_interface', spec_set=True, autospec=True)
     @patch('charm.handlers.on_start', spec_set=True, autospec=True)
     @patch('charm.GrafanaImageResource', spec_set=True, autospec=True)
     @patch('charm.FrameworkAdapter', spec_set=True, autospec=True)
@@ -125,7 +130,8 @@ class CharmTest(unittest.TestCase):
             self,
             mock_framework_adapter_cls,
             mock_prometheus_image_resource_cls,
-            mock_on_start_handler):
+            mock_on_start_handler,
+            mock_http_interface):
 
         # Setup
         mock_event = create_autospec(EventBase, spec_set=True)
