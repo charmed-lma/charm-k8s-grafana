@@ -18,6 +18,9 @@ class FrameworkAdapter:
         else:
             return self._framework.model.config
 
+    def get_relations(self, relation_name):
+        return self.framework.model.relations[relation_name]
+
     def get_resources_repo(self):
         return self._framework.model.resources
 

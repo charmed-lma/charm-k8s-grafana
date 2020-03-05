@@ -8,14 +8,16 @@ from ops.framework import (
     Object,
 )
 
+from adapters import FrameworkAdapter
 from k8s import (
     ServiceSpec,
 )
 
 
 #
-# Client
+# Client/Requiring Charm Classes
 #
+
 class ServerDetails:
 
     def __init__(self, host=None, port=None):
@@ -33,6 +35,17 @@ class ServerDetails:
     def port(self):
         return self._port
 
+    @classmethod
+    def restore(cls, snapshot):
+        return cls(host=snapshot['server_details.host'],
+                   port=snapshot['server_details.port'])
+
+    def snapshot(self):
+        return {
+            'server_details.host': self.host,
+            'server_details.port': self.port,
+        }
+
 
 class ServerAvailableEvent(EventBase):
 
@@ -48,15 +61,10 @@ class ServerAvailableEvent(EventBase):
         return self._server_details
 
     def snapshot(self):
-        return {
-            'server_details_host': self.server_details.host,
-            'server_details_port': self.server_details.port,
-        }
+        return self.server_details.snapshot()
 
     def restore(self, snapshot):
-        self._server_details = \
-            ServerDetails(host=snapshot['server_details_host'],
-                          port=snapshot['server_details_port'])
+        self._server_details = ServerDetails.restore(snapshot)
 
 
 class ClientEvents(EventsBase):
@@ -68,11 +76,16 @@ class Client(Object):
 
     def __init__(self, charm, relation_name):
         super().__init__(charm, relation_name)
-
         self._relation_name = relation_name
 
-        self.framework.observe(charm.on[relation_name].relation_changed,
-                               self.on_relation_changed)
+        # Abstract out framework and friends so that this object is not
+        # too tightly coupled with the underlying framework's implementation.
+        # From this point forward, our Client object will only interact with
+        # the adapter and not directly with the framework.
+        self.adapter = FrameworkAdapter(self.framework)
+
+        self.adapter.observe(charm.on[relation_name].relation_changed,
+                             self.on_relation_changed)
 
     @property
     def relation_name(self):
@@ -82,7 +95,7 @@ class Client(Object):
         # TODO: Add some logic here to pick up the right relation in case
         # the client charm is related to more than one unit. E.g. when the
         # server is in HA mode.
-        relation = self.framework.model.relations[self.relation_name][0]
+        relation = self.adapter.get_relations(self.relation_name)[0]
 
         # Fetch the k8s Service resource fronting the server pods
         service_spec = ServiceSpec(relation.app.name)
