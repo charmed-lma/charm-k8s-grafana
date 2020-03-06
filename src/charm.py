@@ -43,7 +43,7 @@ class Charm(CharmBase):
         for event, handler in event_handler_bindings.items():
             self.adapter.observe(event, handler)
 
-        self.prometheus_image = GrafanaImageResource(
+        self.image_resource = GrafanaImageResource(
             resources_repo=self.adapter.get_resources_repo()
         )
 
@@ -52,7 +52,7 @@ class Charm(CharmBase):
             event=event,
             app_name=self.adapter.get_app_name(),
             config=self.adapter.get_config(),
-            image_resource=self.prometheus_image,
+            image_resource=self.image_resource,
         )
         self.adapter.set_pod_spec(output.spec)
         self.adapter.set_unit_status(output.unit_status)
