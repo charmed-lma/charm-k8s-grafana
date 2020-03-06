@@ -13,9 +13,22 @@ from k8s import (
     ServiceSpec,
 )
 
+# Ideally, this interface and its tests should be located in its own
+# repository. However, to keep the initial development process simple,
+# this file is colocated with its first dependent charm. It should
+# be moved out eventually though.
+
+#
+# Server/Providing Charm Classes
+# These are the classes used by the server/providing charm
+#
+
+# TODO: Code stuff
+
 
 #
 # Client/Requiring Charm Classes
+# This are the classes used by the client/requiring charm
 #
 
 class ServerDetails:
