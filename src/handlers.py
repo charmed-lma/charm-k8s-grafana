@@ -40,7 +40,7 @@ def on_prometheus_available(
 
     :returns: An object containing the spec dict and other attributes.
 
-    :rtype: :class:`handlers.OnStartHandlerOutput`
+    :rtype: :class:`handlers.OnPrometheusAvailableOutput`
 
     """
     try:

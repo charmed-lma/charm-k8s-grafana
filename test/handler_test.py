@@ -1,6 +1,7 @@
 import json
 import random
 import sys
+import textwrap
 import unittest
 from unittest.mock import (
     call,
@@ -21,6 +22,7 @@ from ops.model import (
 
 sys.path.append('src')
 import handlers
+import http_interface
 from resources import (
     ResourceError,
     OCIImageResource,
@@ -30,7 +32,87 @@ from resources import (
 class OnPrometheusAvailableTest(unittest.TestCase):
 
     def test_updates_grafana_deployment_pod_spec_template(self):
-        pass
+        # Set up
+        mock_app_name = f'{uuid4()}'
+
+        mock_advertised_port = random.randint(1, 65535)
+        mock_external_labels = {
+            f"{uuid4()}": f"{uuid4()}",
+            f"{uuid4()}": f"{uuid4()}",
+            f"{uuid4()}": f"{uuid4()}",
+        }
+
+        mock_config = {
+            'advertised-port': mock_advertised_port,
+            'external-labels': json.dumps(mock_external_labels)
+        }
+
+        mock_image_resource = create_autospec(OCIImageResource, spec_set=True)
+        mock_image_resource.fetch.return_value = True
+
+        mock_prom_host = f'{uuid4()}',
+        mock_prom_port = random.randint(1, 65535)
+        mock_server_details = http_interface.ServerDetails(
+            host=mock_prom_host,
+            port=mock_prom_port
+        )
+        ds_path = '/etc/grafana/provisioning/datasources'
+
+        # Exercise
+        output = handlers.on_prometheus_available(
+            server_details=mock_server_details,
+            app_name=mock_app_name,
+            config=mock_config,
+            image_resource=mock_image_resource)
+
+        # Assertions
+        assert mock_image_resource.fetch.call_count == 1
+        assert mock_image_resource.fetch.call_args == call()
+
+        assert type(output.unit_status) == MaintenanceStatus
+        assert output.unit_status.message == \
+            f'Connecting to prometheus at {mock_server_details.host}:' \
+            f'{mock_server_details.port}'
+
+        assert type(output.spec) == dict
+        assert output.spec == {'containers': [{
+            'name': mock_app_name,
+            'imageDetails': {
+                'imagePath': mock_image_resource.image_path,
+                'username': mock_image_resource.username,
+                'password': mock_image_resource.password
+            },
+            'ports': [{
+                'containerPort': mock_config['advertised-port'],
+                'protocol': 'TCP'
+            }],
+            'readinessProbe': {
+                'httpGet': {
+                    'path': '/api/health',
+                    'port': mock_config['advertised-port']
+                },
+                'initialDelaySeconds': 10,
+                'timeoutSeconds': 30
+            },
+            'files': [{
+                # Note: 'name' must comply with DNS-1123 standard
+                'name': 'prometheus-ds',
+                'mountPath': f'{ds_path}',
+                'files': {
+                    'prometheus.yaml': textwrap.dedent(f"""
+                        apiVersion: 1
+
+                        datasources:
+                        - name: Prometheus
+                          type: prometheus
+                          access: proxy
+                          url: http://{mock_prom_host}:{mock_prom_port}
+                          isDefault: true
+                          editable: false
+                    """)
+                }
+            }]
+        }]}
 
 
 class OnStartHandlerTest(unittest.TestCase):
