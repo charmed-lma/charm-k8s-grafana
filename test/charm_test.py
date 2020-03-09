@@ -23,6 +23,9 @@ sys.path.append('src')
 from charm import (
     Charm
 )
+from http_interface import (
+    ServerAvailableEvent
+)
 
 
 class CharmTest(unittest.TestCase):
@@ -80,6 +83,54 @@ class CharmTest(unittest.TestCase):
     # real object, autospec=True automatically copies the signature of the
     # mocked object to the mock.
     @patch('charm.http_interface', spec_set=True, autospec=True)
+    @patch('charm.handlers.on_prometheus_available', spec_set=True,
+           autospec=True)
+    @patch('charm.GrafanaImageResource', spec_set=True, autospec=True)
+    @patch('charm.FrameworkAdapter', spec_set=True, autospec=True)
+    def test__on_prometheus_available_delegator__spec_is_set(
+            self,
+            mock_framework_adapter_cls,
+            mock_prometheus_image_resource_cls,
+            mock_on_prometheus_available,
+            mock_http_interface):
+
+        # Setup
+        mock_event = create_autospec(ServerAvailableEvent, spec_set=True)
+        mock_adapter = mock_framework_adapter_cls.return_value
+        mock_adapter.check_if_i_am_leader.return_value = True
+        mock_image_resource = mock_prometheus_image_resource_cls.return_value
+        mock_output = create_autospec(object)
+        mock_output.spec = create_autospec(object)
+        mock_output.unit_status = create_autospec(object)
+        mock_on_prometheus_available.return_value = mock_output
+
+        # Exercise
+        charm_obj = Charm(self.create_framework(), None)
+        charm_obj.on_prometheus_available_delegator(mock_event)
+
+        # Assertions
+        assert mock_adapter.get_config.call_count == 1
+        assert mock_adapter.get_config.call_args == call()
+
+        assert mock_on_prometheus_available.call_count == 1
+        assert mock_on_prometheus_available.call_args == call(
+            server_details=mock_event.server_details,
+            app_name=mock_adapter.get_app_name.return_value,
+            config=mock_adapter.get_config.return_value,
+            image_resource=mock_image_resource)
+
+        assert mock_adapter.set_pod_spec.call_count == 1
+        assert mock_adapter.set_pod_spec.call_args == \
+            call(mock_output.spec)
+
+        assert mock_adapter.set_unit_status.call_count == 1
+        assert mock_adapter.set_unit_status.call_args == \
+            call(mock_output.unit_status)
+
+    # spec_set=True ensures we don't define an attribute that is not in the
+    # real object, autospec=True automatically copies the signature of the
+    # mocked object to the mock.
+    @patch('charm.http_interface', spec_set=True, autospec=True)
     @patch('charm.handlers.on_start', spec_set=True, autospec=True)
     @patch('charm.GrafanaImageResource', spec_set=True, autospec=True)
     @patch('charm.FrameworkAdapter', spec_set=True, autospec=True)
@@ -93,6 +144,7 @@ class CharmTest(unittest.TestCase):
         # Setup
         mock_event = create_autospec(EventBase, spec_set=True)
         mock_adapter = mock_framework_adapter_cls.return_value
+        mock_adapter.check_if_i_am_leader.return_value = True
         mock_image_resource = mock_prometheus_image_resource_cls.return_value
         mock_output = create_autospec(object)
         mock_output.spec = create_autospec(object)

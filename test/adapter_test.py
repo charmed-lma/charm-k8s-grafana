@@ -38,6 +38,19 @@ class FrameworkAdapterTest(unittest.TestCase):
 
         return framework
 
+    def test__check_if_i_am_leader__returns_true_if_unit_is_leader(self):
+        # Setup
+        mock_framework = create_autospec(self.create_framework(),
+                                         spec_set=True)
+        mock_framework.model.unit.is_leader.return_value = True
+
+        # Exercise
+        adapter = FrameworkAdapter(mock_framework)
+        is_leader = adapter.check_if_i_am_leader()
+
+        # Assert
+        assert is_leader
+
     def test__get_app_name__returns_the_name_of_the_app(self):
         # Setup
         mock_framework = create_autospec(self.create_framework(),
