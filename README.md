@@ -59,6 +59,26 @@ For more info on getting started with Grafana see [its official getting
 started guide](https://prometheus.io/docs/visualization/grafana/).
 
 
+Use Prometheus as a Datasource
+------------------------------
+
+Follow the steps for [deploying charm-k8s-prometheus](https://github.com/relaxdiego/charm-k8s-prometheus).
+Once Prometheus is up and running, relate it with Grafana by running the
+following command:
+
+```
+juju relate charm-k8s-grafana charm-k8s-prometheus
+```
+
+Once Grafana has settled, head back to the Grafana UI to see the
+Prometheus datasource configured. Create a new dashboard and run
+the following query to test the connection:
+
+```
+rate(prometheus_tsdb_head_chunks_created_total[1m])
+```
+
+
 Running the Unit Tests on Your Workstation
 ------------------------------------------
 
