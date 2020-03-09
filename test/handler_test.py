@@ -27,6 +27,12 @@ from resources import (
 )
 
 
+class OnPrometheusAvailableTest(unittest.TestCase):
+
+    def test_updates_grafana_deployment_pod_spec_template(self):
+        pass
+
+
 class OnStartHandlerTest(unittest.TestCase):
 
     def test_pod_spec_is_generated(self):

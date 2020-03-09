@@ -1,4 +1,3 @@
-import time
 from types import SimpleNamespace
 
 import sys
@@ -20,10 +19,88 @@ def _create_output_obj(dict_obj):
     return SimpleNamespace(**dict_obj)
 
 
-def on_prometheus_available(server_details):
-    # TODO: Do something here to reconfigure the pod and make Grafana
-    #       be aware of prometheus as a data source.
-    time.sleep(5)
+# There's a lot of code duplication here but that's fine for the meantime.
+# With the tests around we can refactor these without anxiety.
+def on_prometheus_available(
+        server_details,
+        app_name,
+        config,
+        image_resource):
+    """Generates the k8s spec needed to deploy configure Grafana to use
+    Prometheus as a datasource
+
+    :param str app_name: The name of the application.
+
+    :param dict config: Key-value pairs derived from config options declared
+        in config.yaml
+
+    :param OCIImageResource image_resource: Image resource object containing
+        the registry path, username, and password.
+
+    :returns: An object containing the spec dict and other attributes.
+
+    :rtype: :class:`handlers.OnStartHandlerOutput`
+
+    """
+    try:
+        image_resource.fetch()
+    except ResourceError as err:
+        output = dict(
+            unit_status=err.status,
+            spec=None
+        )
+        return _create_output_obj(output)
+
+    advertised_port = config['advertised-port']
+    provisioning_path = '/etc/grafana/provisioning'
+    prom_host = server_details.host
+    prom_port = server_details.port
+
+    output = dict(
+        unit_status=MaintenanceStatus(
+            f'Connecting to prometheus at '
+            f'{prom_host}:{prom_port}'),
+        spec={
+            'containers': [{
+                'name': app_name,
+                'imageDetails': {
+                    'imagePath': image_resource.image_path,
+                    'username': image_resource.username,
+                    'password': image_resource.password
+                },
+                'ports': [{
+                    'containerPort': advertised_port,
+                    'protocol': 'TCP'
+                }],
+                'readinessProbe': {
+                    'httpGet': {
+                        'path': '/api/health',
+                        'port': advertised_port
+                    },
+                    'initialDelaySeconds': 10,
+                    'timeoutSeconds': 30
+                },
+                'files': [{
+                    # Note: 'name' must comply with DNS-1123 standard
+                    'name': 'prometheus-config',
+                    'mountPath': f'{provisioning_path}',
+                    'files': {
+                        'prometheus.yaml': f"""
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://{prom_host}:{prom_port}
+                        """
+                    }
+                }]
+            }]
+        }
+    )
+
+    return _create_output_obj(output)
 
 
 def on_start(event,

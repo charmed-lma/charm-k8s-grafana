@@ -9,6 +9,9 @@ class FrameworkAdapter:
     def __init__(self, framework):
         self._framework = framework
 
+    def check_if_i_am_leader(self):
+        return self._framework.model.unit.is_leader()
+
     def get_app_name(self):
         return self._framework.model.app.name
 
@@ -19,7 +22,7 @@ class FrameworkAdapter:
             return self._framework.model.config
 
     def get_relations(self, relation_name):
-        return self.framework.model.relations[relation_name]
+        return self._framework.model.relations[relation_name]
 
     def get_resources_repo(self):
         return self._framework.model.resources

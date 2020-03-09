@@ -6,10 +6,6 @@ from ops.charm import (
     CharmBase,
 )
 from ops.main import main
-from ops.model import (
-    ActiveStatus,
-    MaintenanceStatus,
-)
 import http_interface
 
 from adapters import FrameworkAdapter
@@ -69,13 +65,15 @@ class Charm(CharmBase):
             pod_is_ready = output.pod_is_ready
 
     def on_prometheus_available_delegator(self, event):
-        self.adapter.set_unit_status(MaintenanceStatus(
-            f'Connecting to prometheus server'
-        ))
-
-        handlers.on_prometheus_available(server_details=event.server_details)
-
-        self.adapter.set_unit_status(ActiveStatus())
+        if self.adapter.check_if_i_am_leader():
+            output = handlers.on_prometheus_available(
+                server_details=event.server_details,
+                app_name=self.adapter.get_app_name(),
+                config=self.adapter.get_config(),
+                image_resource=self.image_resource,
+            )
+            self.adapter.set_pod_spec(output.spec)
+            self.adapter.set_unit_status(output.unit_status)
 
     def on_upgrade_delegator(self, event):
         self.on_start_delegator(event)
