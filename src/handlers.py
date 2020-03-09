@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+import textwrap
 
 import sys
 sys.path.append('lib')
@@ -52,7 +53,7 @@ def on_prometheus_available(
         return _create_output_obj(output)
 
     advertised_port = config['advertised-port']
-    provisioning_path = '/etc/grafana/provisioning'
+    ds_path = '/etc/grafana/provisioning/datasources'
     prom_host = server_details.host
     prom_port = server_details.port
 
@@ -82,18 +83,20 @@ def on_prometheus_available(
                 },
                 'files': [{
                     # Note: 'name' must comply with DNS-1123 standard
-                    'name': 'prometheus-config',
-                    'mountPath': f'{provisioning_path}',
+                    'name': 'prometheus-ds',
+                    'mountPath': f'{ds_path}',
                     'files': {
-                        'prometheus.yaml': f"""
-apiVersion: 1
+                        'prometheus.yaml': textwrap.dedent(f"""
+                            apiVersion: 1
 
-datasources:
-  - name: Prometheus
-    type: prometheus
-    access: proxy
-    url: http://{prom_host}:{prom_port}
-                        """
+                            datasources:
+                            - name: Prometheus
+                              type: prometheus
+                              access: proxy
+                              url: http://{prom_host}:{prom_port}
+                              isDefault: true
+                              editable: false
+                        """)
                     }
                 }]
             }]
