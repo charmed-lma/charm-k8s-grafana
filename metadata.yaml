@@ -1,6 +1,6 @@
-name: "charm-k8s-grafana"
-display-name: "k8s-grafana"
-summary: "Grafana Charm"
+name: "grafana"
+display-name: "Grafana"
+summary: "Grafana Operator for Kubernetes"
 maintainers:
     - "Mark Maglana <mark.maglana@canonical.com>"
 description: |

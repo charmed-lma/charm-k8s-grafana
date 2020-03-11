@@ -38,8 +38,7 @@ juju add-model lma
 juju deploy . --resource grafana-image=grafana/grafana:latest
 ```
 
-Wait until `juju status` shows that the charm-k8s-grafana app has
-a status of active.
+Wait until `juju status` shows that the grafana app has a status of active.
 
 
 Preview the GUI
@@ -47,7 +46,7 @@ Preview the GUI
 
 Run:
 
-    kubectl -n lma port-forward svc/charm-k8s-grafana 3000:3000
+    kubectl -n lma port-forward svc/grafana 3000:3000
 
 The above assumes you're using the default value for `advertised-port`. If
 you customized this value from 3000 to some other value, change the command
@@ -67,7 +66,7 @@ Once Prometheus is up and running, relate it with Grafana by running the
 following command:
 
 ```
-juju relate charm-k8s-grafana charm-k8s-prometheus
+juju relate grafana prometheus
 ```
 
 Once Grafana has settled, head back to the Grafana UI to see the
