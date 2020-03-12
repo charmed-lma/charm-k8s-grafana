@@ -49,7 +49,6 @@ class Charm(CharmBase):
         if self.adapter.check_if_i_am_leader():
             logging.info(f'Configuring pod')
             output = handlers.on_start(
-                event=event,
                 app_name=self.adapter.get_app_name(),
                 config=self.adapter.get_config(),
                 image_resource=self.image_resource,
@@ -67,7 +66,6 @@ class Charm(CharmBase):
 
         while not pod_is_ready:
             output = handlers.on_config_changed(
-                event=event,
                 app_name=app_name
             )
             self.adapter.set_unit_status(output.unit_status)

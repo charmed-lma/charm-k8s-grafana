@@ -70,9 +70,9 @@ class CharmTest(unittest.TestCase):
         # Assert
         assert mock_on_config_changed_handler.call_count == len(mock_outputs)
         assert mock_on_config_changed_handler.call_args_list == [
-            call(event=mock_event, app_name=mock_adapter.get_app_name()),
-            call(event=mock_event, app_name=mock_adapter.get_app_name()),
-            call(event=mock_event, app_name=mock_adapter.get_app_name()),
+            call(app_name=mock_adapter.get_app_name()),
+            call(app_name=mock_adapter.get_app_name()),
+            call(app_name=mock_adapter.get_app_name()),
         ]
         assert mock_adapter.set_unit_status.call_count == len(mock_outputs)
         assert mock_adapter.set_unit_status.call_args_list == [
@@ -161,7 +161,6 @@ class CharmTest(unittest.TestCase):
 
         assert mock_on_start_handler.call_count == 1
         assert mock_on_start_handler.call_args == call(
-            event=mock_event,
             app_name=mock_adapter.get_app_name.return_value,
             config=mock_adapter.get_config.return_value,
             image_resource=mock_image_resource)
@@ -204,7 +203,6 @@ class CharmTest(unittest.TestCase):
 
         assert mock_on_start_handler.call_count == 1
         assert mock_on_start_handler.call_args == call(
-            event=mock_event,
             app_name=mock_adapter.get_app_name.return_value,
             config=mock_adapter.get_config.return_value,
             image_resource=mock_image_resource)
