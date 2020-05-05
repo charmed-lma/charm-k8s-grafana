@@ -8,10 +8,10 @@ from ops.framework import (
     Object,
 )
 
-from adapters import FrameworkAdapter
-from k8s import (
-    ServiceSpec,
-)
+# from adapters import FrameworkAdapter
+# from k8s import (
+#     ServiceSpec,
+# )
 
 # Ideally, this interface and its tests should be located in its own
 # repository. However, to keep the initial development process simple,

@@ -1,7 +1,26 @@
 import json
 import http.client
-import os
 import ssl
+
+
+def get_pod_status(juju_model, juju_app, juju_unit):
+    namespace = juju_model
+
+    path = f'/api/v1/namespaces/{namespace}/pods?' \
+           f'labelSelector=juju-app={juju_app}'
+
+    api_server = APIServer()
+    response = api_server.get(path)
+    status_dict = None
+
+    if response.get('kind', '') == 'PodList' and response['items']:
+        status_dict = next(
+            (i for i in response['items']
+             if i['metadata']['annotations'].get('juju.io/unit') == juju_unit),
+            None
+        )
+
+    return PodStatus(status_dict)
 
 
 class APIServer:
@@ -36,30 +55,8 @@ class APIServer:
 
 class PodStatus:
 
-    def __init__(self, app_name):
-        self._app_name = app_name
-        self._status = None
-
-    def fetch(self):
-        namespace = os.environ["JUJU_MODEL_NAME"]
-
-        path = f'/api/v1/namespaces/{namespace}/pods?' \
-               f'labelSelector=juju-app={self._app_name}'
-
-        api_server = APIServer()
-        response = api_server.get(path)
-
-        if response.get('kind', '') == 'PodList' and response['items']:
-            unit = os.environ['JUJU_UNIT_NAME']
-            status = next(
-                (i for i in response['items']
-                 if i['metadata']['annotations'].get('juju.io/unit') == unit),
-                None
-            )
-        else:
-            status = None
-
-        self._status = status
+    def __init__(self, status_dict):
+        self._status = status_dict
 
     @property
     def is_ready(self):
@@ -85,30 +82,3 @@ class PodStatus:
     @property
     def is_unknown(self):
         return not self._status
-
-
-class ServiceSpec:
-
-    def __init__(self, app_name):
-        self._app_name = app_name
-
-    def fetch(self):
-        namespace = os.environ["JUJU_MODEL_NAME"]
-        path = f'/api/v1/namespaces/{namespace}/services/{self._app_name}'
-
-        api_server = APIServer()
-        self._spec = api_server.get(path)
-
-    @property
-    def host(self):
-        return self._spec['spec']['clusterIP']
-
-    @property
-    def port(self):
-        return next(
-            (
-                i['port'] for i in self._spec['spec']['ports']
-                if i['protocol'] == 'TCP'
-            ),
-            None
-        )

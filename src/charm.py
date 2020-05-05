@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-import logging
-logger = logging.getLogger()
 import sys
 sys.path.append('lib')
 
@@ -8,89 +6,120 @@ from ops.charm import (
     CharmBase,
 )
 from ops.main import main
-import http_interface
-
-from adapters import FrameworkAdapter
-from resources import (
-    GrafanaImageResource,
+from ops.model import (
+    ActiveStatus,
+    MaintenanceStatus,
 )
-import handlers
 
+from interface_http import interface_http
+
+from adapters import (
+    framework,
+    k8s,
+)
+
+from domain import (
+    build_juju_pod_spec,
+    build_juju_unit_status,
+)
+
+
+# CHARM
+
+# This charm class mainly does self-configuration via its initializer and
+# contains not much logic. It also just has one-liner delegators the design
+# of which is further discussed below (just before the delegator definitions)
 
 class Charm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
 
-        # Abstract out framework and friends so that this object is not
-        # too tightly coupled with the underlying framework's implementation.
-        # From this point forward, our Charm object will only interact with the
-        # adapter and not directly with the framework.
-        self.adapter = FrameworkAdapter(self.framework)
+        self.adapter = framework.FrameworkAdapter(self.framework)
+        self.prometheus_client = interface_http.Client(self, 'prometheus-api')
 
-        self.prometheus_client = http_interface.Client(self, 'prometheus-api')
-
-        # Bind event handlers to events
-        event_handler_bindings = {
-            self.on.start: self.on_start_delegator,
-            self.on.config_changed: self.on_config_changed_delegator,
-            self.on.upgrade_charm: self.on_upgrade_delegator,
-            self.prometheus_client.on.server_available:
-                self.on_prometheus_available_delegator,
+        event_delegators = {
+            self.on.start: self.on_start,
+            self.on.config_changed: self.on_config_changed,
+            self.on.upgrade_charm: self.on_start,
+            self.prometheus_client.on.server_available: self.on_prom_available
         }
-        for event, handler in event_handler_bindings.items():
-            self.adapter.observe(event, handler)
+        for event, delegator in event_delegators.items():
+            self.adapter.observe(event, delegator)
 
-        self.image_resource = GrafanaImageResource(
-            resources_repo=self.adapter.get_resources_repo()
-        )
+    # DELEGATORS
 
-    def on_start_delegator(self, event):
-        if self.adapter.check_if_i_am_leader():
-            logging.info(f'Configuring pod')
-            output = handlers.on_start(
-                app_name=self.adapter.get_app_name(),
-                config=self.adapter.get_config(),
-                image_resource=self.image_resource,
-            )
-            self.adapter.set_pod_spec(output.spec)
-            self.adapter.set_unit_status(output.unit_status)
-        else:
-            logging.info(f'Unit is not a leader. Skipping pod config')
+    # These delegators exist to decouple the actual handlers from the
+    # underlying framework which has some very specific requirements that
+    # do not always apply to every event. For example, because we have to
+    # instantiate the interface_http.Client during charm initialization,
+    # we are forced to write unit tests that mock out that object even
+    # for handlers that do not need it. This hard coupling results in verbose
+    # tests that contain unused mocks. These tests tend to be hard to follow
+    # so to counter that, the logic is moved away from this class.
 
-    def on_config_changed_delegator(self, event):
-        pod_is_ready = False
-        app_name = self.adapter.get_app_name()
+    def on_config_changed(self, event):
+        on_config_changed_handler(event, self.adapter)
 
-        logging.info(f'Waiting for k8s pod to be ready')
+    def on_prom_available(self, event):
+        on_prom_available_handler(event, self.adapter)
 
-        while not pod_is_ready:
-            output = handlers.on_config_changed(
-                app_name=app_name
-            )
-            self.adapter.set_unit_status(output.unit_status)
-            pod_is_ready = output.pod_is_ready
+    def on_start(self, event):
+        on_start_handler(event, self.adapter)
 
-        logging.info(f'Ready to serve requests')
 
-    def on_prometheus_available_delegator(self, event):
-        app_name = self.adapter.get_app_name()
-        if self.adapter.check_if_i_am_leader():
-            logging.info(f'Adding prometheus datasource')
-            output = handlers.on_prometheus_available(
-                server_details=event.server_details,
-                app_name=app_name,
-                config=self.adapter.get_config(),
-                image_resource=self.image_resource,
-            )
-            self.adapter.set_pod_spec(output.spec)
-            self.adapter.set_unit_status(output.unit_status)
-        else:
-            logging.info(f'Unit is not a leader. Skipping prometheus config')
+# EVENT HANDLERS
 
-    def on_upgrade_delegator(self, event):
-        logging.info(f'on_upgrade_delegator called')
-        self.on_start_delegator(event)
+# These event handlers are designed to be stateless and, as much as possible,
+# procedural (run from top to bottom). They are stateless since these stored
+# states are already handled by the Charm object anyway and also because this
+# simplifies testing of said handlers. They are also procedural since they are
+# similar to controllers in an MVC app in that they are only concerned with
+# coordinating domain models and services.
+
+def on_config_changed_handler(event, framework):
+    juju_model = framework.get_model_name()
+    juju_app = framework.get_app_name()
+    juju_unit = framework.get_unit_name()
+
+    pod_is_ready = False
+
+    while not pod_is_ready:
+        k8s_pod_status = k8s.get_pod_status(juju_model=juju_model,
+                                            juju_app=juju_app,
+                                            juju_unit=juju_unit)
+        juju_unit_status = build_juju_unit_status(k8s_pod_status)
+        framework.set_unit_status(juju_unit_status)
+        pod_is_ready = isinstance(juju_unit_status, ActiveStatus)
+
+
+def on_prom_available_handler(event, framework):
+    if not framework.am_i_leader():
+        return
+
+    juju_pod_spec = build_juju_pod_spec(
+        app_name=framework.get_app_name(),
+        charm_config=framework.get_config(),
+        image_meta=framework.get_image_meta('grafana-image'),
+        prometheus_server_details=event.server_details,
+    )
+
+    framework.set_pod_spec(juju_pod_spec)
+    framework.set_unit_status(MaintenanceStatus("Configuring pod"))
+
+
+def on_start_handler(event, framework):
+    if not framework.am_i_leader():
+        return
+
+    juju_pod_spec = build_juju_pod_spec(
+        app_name=framework.get_app_name(),
+        charm_config=framework.get_config(),
+        image_meta=framework.get_image_meta('grafana-image'),
+    )
+
+    framework.set_pod_spec(juju_pod_spec)
+    framework.set_unit_status(MaintenanceStatus("Configuring pod"))
 
 
 if __name__ == "__main__":
