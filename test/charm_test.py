@@ -1,4 +1,7 @@
+from pathlib import Path
+import shutil
 import sys
+import tempfile
 import unittest
 from unittest.mock import (
     call,
@@ -9,12 +12,12 @@ from uuid import uuid4
 
 sys.path.append('lib')
 
-from interface_http.interface_http import (
-    ServerAvailableEvent,
+from ops.charm import (
+    CharmMeta,
 )
-
 from ops.framework import (
     EventBase,
+    Framework
 )
 from ops.model import (
     ActiveStatus,
@@ -24,6 +27,35 @@ from ops.model import (
 sys.path.append('src')
 import adapters
 import charm
+from interface_http import (
+    ServerAvailableEvent,
+)
+
+
+class CharmTest(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        # Ensure that we clean up the tmp directory even when the test
+        # fails or errors out for whatever reason.
+        self.addCleanup(shutil.rmtree, self.tmpdir)
+
+    def create_framework(self):
+        framework = Framework(self.tmpdir / "framework.data",
+                              self.tmpdir, CharmMeta(), None)
+        # Ensure that the Framework object is closed and cleaned up even
+        # when the test fails or errors out.
+        self.addCleanup(framework.close)
+
+        return framework
+
+    @patch('charm.framework.FrameworkAdapter', spec_set=True, autospec=True)
+    @patch('charm.interface_http.Client', spec_set=True, autospec=True)
+    def test__init__works_without_a_hitch(self,
+                                          mock_interface_http_client_cls,
+                                          mock_framework_adapter_cls):
+        # Exercise
+        charm.Charm(self.create_framework(), None)
 
 
 class OnConfigChangedHandlerTest(unittest.TestCase):

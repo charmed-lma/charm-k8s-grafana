@@ -17,6 +17,8 @@ def build_juju_pod_spec(app_name,
                         charm_config,
                         image_meta,
                         prometheus_server_details=None):
+    advertised_port = charm_config['advertised-port']
+
     spec = {
         'containers': [{
             'name': app_name,
@@ -26,13 +28,13 @@ def build_juju_pod_spec(app_name,
                 'password': image_meta.repo_password
             },
             'ports': [{
-                'containerPort': charm_config['advertised_port'],
+                'containerPort': advertised_port,
                 'protocol': 'TCP'
             }],
             'readinessProbe': {
                 'httpGet': {
                     'path': '/api/health',
-                    'port': charm_config['advertised_port']
+                    'port': advertised_port
                 },
                 'initialDelaySeconds': 10,
                 'timeoutSeconds': 30

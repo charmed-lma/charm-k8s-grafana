@@ -20,11 +20,11 @@ class ImageMeta(Object):
         return self.resource_dict['registrypath']
 
     @property
-    def username(self):
+    def repo_username(self):
         return self.resource_dict['username']
 
     @property
-    def password(self):
+    def repo_password(self):
         return self.resource_dict['password']
 
 

@@ -8,22 +8,14 @@ from ops.framework import (
     Object,
 )
 
-# from adapters import FrameworkAdapter
-# from k8s import (
-#     ServiceSpec,
-# )
+from adapters import (
+    framework,
+)
 
 # Ideally, this interface and its tests should be located in its own
 # repository. However, to keep the initial development process simple,
 # this file is colocated with its first dependent charm. It should
 # be moved out eventually though.
-
-#
-# Server/Providing Charm Classes
-# These are the classes used by the server/providing charm
-#
-
-# TODO: Code stuff
 
 
 #
@@ -95,7 +87,7 @@ class Client(Object):
         # too tightly coupled with the underlying framework's implementation.
         # From this point forward, our Client object will only interact with
         # the adapter and not directly with the framework.
-        self.adapter = FrameworkAdapter(self.framework)
+        self.adapter = framework.FrameworkAdapter(self.framework)
 
         self.adapter.observe(charm.on[relation_name].relation_changed,
                              self.on_relation_changed)
@@ -111,8 +103,7 @@ class Client(Object):
         relation = self.adapter.get_relations(self.relation_name)[0]
 
         # Fetch the k8s Service resource fronting the server pods
-        service_spec = ServiceSpec(relation.app.name)
-        service_spec.fetch()
+        service_spec = self.adapter.get_service_spec(relation.app.name)
 
         server_details = ServerDetails(host=service_spec.host,
                                        port=service_spec.port)

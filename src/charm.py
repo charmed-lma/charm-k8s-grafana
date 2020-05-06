@@ -11,7 +11,7 @@ from ops.model import (
     MaintenanceStatus,
 )
 
-from interface_http import interface_http
+import interface_http
 
 from adapters import (
     framework,
@@ -35,16 +35,21 @@ class Charm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
 
+        # Abstract out framework and friends so that this object is not
+        # too tightly coupled with the underlying framework's implementation.
+        # From this point forward, our Charm object will only interact with the
+        # adapter and not directly with the framework.
         self.adapter = framework.FrameworkAdapter(self.framework)
         self.prometheus_client = interface_http.Client(self, 'prometheus-api')
 
-        event_delegators = {
+        # Bind event handlers to events
+        event_handler_bindings = {
             self.on.start: self.on_start,
             self.on.config_changed: self.on_config_changed,
             self.on.upgrade_charm: self.on_start,
             self.prometheus_client.on.server_available: self.on_prom_available
         }
-        for event, delegator in event_delegators.items():
+        for event, delegator in event_handler_bindings.items():
             self.adapter.observe(event, delegator)
 
     # DELEGATORS

@@ -58,8 +58,8 @@ class FetchImageMetaTest(unittest.TestCase):
 
         # Assert
         assert image_meta.image_path == mock_image_path
-        assert image_meta.username == mock_username
-        assert image_meta.password == mock_password
+        assert image_meta.repo_username == mock_username
+        assert image_meta.repo_password == mock_password
 
     def test__resource_path_does_not_exist(self):
         # Setup
