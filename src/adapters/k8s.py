@@ -3,6 +3,8 @@ import http.client
 import ssl
 
 
+# SERVICES
+
 def get_pod_status(juju_model, juju_app, juju_unit):
     namespace = juju_model
 
@@ -21,6 +23,21 @@ def get_pod_status(juju_model, juju_app, juju_unit):
         )
 
     return PodStatus(status_dict)
+
+
+def get_service_spec(juju_model, juju_app):
+    namespace = juju_model
+
+    path = f'/api/v1/namespaces/{namespace}/services/{juju_app}'
+
+    api_server = APIServer()
+    response = api_server.get(path)
+    service_spec = None
+
+    if response.get('kind', '') == 'Service':
+        service_spec = ServiceSpec(response)
+
+    return service_spec
 
 
 class APIServer:
@@ -53,6 +70,8 @@ class APIServer:
         return json.loads(conn.getresponse().read())
 
 
+# MODELS
+
 class PodStatus:
 
     def __init__(self, status_dict):
@@ -82,3 +101,23 @@ class PodStatus:
     @property
     def is_unknown(self):
         return not self._status
+
+
+class ServiceSpec:
+
+    def __init__(self, spec):
+        self._spec = spec
+
+    @property
+    def host(self):
+        return self._spec['spec']['clusterIP']
+
+    @property
+    def port(self):
+        return next(
+            (
+                i['port'] for i in self._spec['spec']['ports']
+                if i['protocol'] == 'TCP'
+            ),
+            None
+        )

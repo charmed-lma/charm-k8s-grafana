@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import (
     call,
+    create_autospec,
     Mock,
     patch,
 )
@@ -16,14 +17,19 @@ from ops.charm import (
     CharmMeta,
 )
 from ops.framework import (
+    EventBase,
     Framework
 )
 
 sys.path.append('src')
 from interface_http import (
     Client,
+    ClientEvents,
     ServerAvailableEvent,
     ServerDetails,
+)
+from adapters import (
+    k8s
 )
 
 
@@ -177,3 +183,39 @@ class ClientTest(unittest.TestCase):
             mock_charm.on[mock_relation_name].relation_changed,
             client.on_relation_changed
         )
+
+    @patch('interface_http.framework.FrameworkAdapter',
+           autospec=True, spec_set=True)
+    @patch('interface_http.k8s', autospec=True, spec_set=True)
+    def test__on_relation_change__emits_the_correct_server_details(
+            self,
+            mock_k8s_mod,
+            mock_framework_adapter_cls):
+        # Set up
+        mock_relation_name = f'{uuid4()}'
+        mock_charm = Mock()
+        mock_charm.on = {mock_relation_name: Mock()}
+        mock_event = create_autospec(EventBase, spec_set=True)
+
+        mock_service_spec = create_autospec(k8s.ServiceSpec, spec_set=True)
+        mock_k8s_mod.get_service_spec.return_value = mock_service_spec
+
+        mock_emit_method = Mock()
+        mock_server_available_attr = Mock()
+        mock_server_available_attr.emit = mock_emit_method
+        mock_client_events_cls = create_autospec(ClientEvents, spec_set=True)
+        mock_client_events = mock_client_events_cls.return_value
+        mock_client_events.server_available = mock_server_available_attr
+
+        # Exercise
+        client = Client(mock_charm, mock_relation_name)
+
+        with patch.object(Client, 'on', mock_client_events):
+            client.on_relation_changed(mock_event)
+
+        # Assertions
+        assert mock_emit_method.call_count == 1
+
+        args, kwargs = mock_emit_method.call_args
+        assert args[0].host == mock_service_spec.host
+        assert args[0].port == mock_service_spec.port

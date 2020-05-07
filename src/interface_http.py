@@ -10,6 +10,7 @@ from ops.framework import (
 
 from adapters import (
     framework,
+    k8s,
 )
 
 # Ideally, this interface and its tests should be located in its own
@@ -101,9 +102,12 @@ class Client(Object):
         # the client charm is related to more than one unit. E.g. when the
         # server is in HA mode.
         relation = self.adapter.get_relations(self.relation_name)[0]
+        juju_app = relation.app.name
+        juju_model = self.adapter.get_model_name()
 
         # Fetch the k8s Service resource fronting the server pods
-        service_spec = self.adapter.get_service_spec(relation.app.name)
+        service_spec = k8s.get_service_spec(juju_model=juju_model,
+                                            juju_app=juju_app)
 
         server_details = ServerDetails(host=service_spec.host,
                                        port=service_spec.port)
