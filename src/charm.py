@@ -39,7 +39,7 @@ class Charm(CharmBase):
         # too tightly coupled with the underlying framework's implementation.
         # From this point forward, our Charm object will only interact with the
         # adapter and not directly with the framework.
-        self.adapter = framework.FrameworkAdapter(self.framework)
+        self.fw_adapter = framework.FrameworkAdapter(self.framework)
         self.prometheus_client = interface_http.Client(self, 'prometheus-api')
 
         # Bind event handlers to events
@@ -50,7 +50,7 @@ class Charm(CharmBase):
             self.prometheus_client.on.server_available: self.on_prom_available
         }
         for event, delegator in event_handler_bindings.items():
-            self.adapter.observe(event, delegator)
+            self.fw_adapter.observe(event, delegator)
 
     # DELEGATORS
 
@@ -64,13 +64,13 @@ class Charm(CharmBase):
     # so to counter that, the logic is moved away from this class.
 
     def on_config_changed(self, event):
-        on_config_changed_handler(event, self.adapter)
+        on_config_changed_handler(event, self.fw_adapter)
 
     def on_prom_available(self, event):
-        on_prom_available_handler(event, self.adapter)
+        on_prom_available_handler(event, self.fw_adapter)
 
     def on_start(self, event):
-        on_start_handler(event, self.adapter)
+        on_start_handler(event, self.fw_adapter)
 
 
 # EVENT HANDLERS
@@ -82,10 +82,10 @@ class Charm(CharmBase):
 # similar to controllers in an MVC app in that they are only concerned with
 # coordinating domain models and services.
 
-def on_config_changed_handler(event, framework):
-    juju_model = framework.get_model_name()
-    juju_app = framework.get_app_name()
-    juju_unit = framework.get_unit_name()
+def on_config_changed_handler(event, fw_adapter):
+    juju_model = fw_adapter.get_model_name()
+    juju_app = fw_adapter.get_app_name()
+    juju_unit = fw_adapter.get_unit_name()
 
     pod_is_ready = False
 
@@ -94,37 +94,37 @@ def on_config_changed_handler(event, framework):
                                             juju_app=juju_app,
                                             juju_unit=juju_unit)
         juju_unit_status = build_juju_unit_status(k8s_pod_status)
-        framework.set_unit_status(juju_unit_status)
+        fw_adapter.set_unit_status(juju_unit_status)
         pod_is_ready = isinstance(juju_unit_status, ActiveStatus)
 
 
-def on_prom_available_handler(event, framework):
-    if not framework.am_i_leader():
+def on_prom_available_handler(event, fw_adapter):
+    if not fw_adapter.am_i_leader():
         return
 
     juju_pod_spec = build_juju_pod_spec(
-        app_name=framework.get_app_name(),
-        charm_config=framework.get_config(),
-        image_meta=framework.get_image_meta('grafana-image'),
+        app_name=fw_adapter.get_app_name(),
+        charm_config=fw_adapter.get_config(),
+        image_meta=fw_adapter.get_image_meta('grafana-image'),
         prometheus_server_details=event.server_details,
     )
 
-    framework.set_pod_spec(juju_pod_spec)
-    framework.set_unit_status(MaintenanceStatus("Configuring pod"))
+    fw_adapter.set_pod_spec(juju_pod_spec)
+    fw_adapter.set_unit_status(MaintenanceStatus("Configuring pod"))
 
 
-def on_start_handler(event, framework):
-    if not framework.am_i_leader():
+def on_start_handler(event, fw_adapter):
+    if not fw_adapter.am_i_leader():
         return
 
     juju_pod_spec = build_juju_pod_spec(
-        app_name=framework.get_app_name(),
-        charm_config=framework.get_config(),
-        image_meta=framework.get_image_meta('grafana-image'),
+        app_name=fw_adapter.get_app_name(),
+        charm_config=fw_adapter.get_config(),
+        image_meta=fw_adapter.get_image_meta('grafana-image'),
     )
 
-    framework.set_pod_spec(juju_pod_spec)
-    framework.set_unit_status(MaintenanceStatus("Configuring pod"))
+    fw_adapter.set_pod_spec(juju_pod_spec)
+    fw_adapter.set_unit_status(MaintenanceStatus("Configuring pod"))
 
 
 if __name__ == "__main__":
