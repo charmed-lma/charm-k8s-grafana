@@ -31,23 +31,38 @@ from interface_http import (
 class CharmTest(unittest.TestCase):
 
     @patch('charm.on_config_changed_handler', spec_set=True, autospec=True)
+    @patch('charm.os', spec_set=True, autospec=True)
+    @patch('charm.k8s', spec_set=True, autospec=True)
+    @patch('charm.build_juju_unit_status', spec_set=True, autospec=True)
     def test__it_calls_on_config_changed_handler_correctly(
         self,
+        mock_build_juju_unit_status_func,
+        mock_k8s_mod,
+        mock_os_mod,
         mock_on_config_changed_handler
     ):
         # Setup
         harness = Harness(charm.Charm)
         harness.begin()
 
+        mock_juju_unit_states = [
+            MaintenanceStatus(str(uuid4())),
+            MaintenanceStatus(str(uuid4())),
+            ActiveStatus(str(uuid4())),
+        ]
+        mock_build_juju_unit_status_func.side_effect = mock_juju_unit_states
+
         # Exercise
         harness.update_config()
 
         # Assert
-        self.assertEqual(mock_on_config_changed_handler.call_count, 1)
-
-        args, kwargs = mock_on_config_changed_handler.call_args
-        self.assertIsInstance(args[0], EventBase)
-        self.assertIsInstance(args[1], charm.framework.FrameworkAdapter)
+        # TODO: Assert that Charm.framework.model.unit.status was set
+        #       using the three mock_juju_unit_states members. However,
+        #       given that we are using the test harness here, we should
+        #       not be mocking out the framework object. Another option
+        #       might be to assert if the framework is reaching out to
+        #       Juju correctly but then that would be overreaching this
+        #       unit test's jurisdiction.
 
 
 class OnConfigChangedHandlerTest(unittest.TestCase):

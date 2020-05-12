@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import sys
 sys.path.append('lib')
 
@@ -64,7 +65,19 @@ class Charm(CharmBase):
     # so to counter that, the logic is moved away from this class.
 
     def on_config_changed(self, event):
-        on_config_changed_handler(event, self.fw_adapter)
+        juju_model = os.environ["JUJU_MODEL_NAME"]
+        juju_app = self.framework.model.app.name
+        juju_unit = os.environ["JUJU_UNIT_NAME"]
+
+        pod_is_ready = False
+
+        while not pod_is_ready:
+            k8s_pod_status = k8s.get_pod_status(juju_model=juju_model,
+                                                juju_app=juju_app,
+                                                juju_unit=juju_unit)
+            juju_unit_status = build_juju_unit_status(k8s_pod_status)
+            self.framework.model.unit.status = juju_unit_status
+            pod_is_ready = isinstance(juju_unit_status, ActiveStatus)
 
     def on_prom_available(self, event):
         on_prom_available_handler(event, self.fw_adapter)
