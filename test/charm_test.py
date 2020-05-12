@@ -1,7 +1,4 @@
-from pathlib import Path
-import shutil
 import sys
-import tempfile
 import unittest
 from unittest.mock import (
     call,
@@ -12,16 +9,15 @@ from uuid import uuid4
 
 sys.path.append('lib')
 
-from ops.charm import (
-    CharmMeta,
-)
 from ops.framework import (
     EventBase,
-    Framework
 )
 from ops.model import (
     ActiveStatus,
     MaintenanceStatus,
+)
+from ops.testing import (
+    Harness,
 )
 
 sys.path.append('src')
@@ -34,28 +30,24 @@ from interface_http import (
 
 class CharmTest(unittest.TestCase):
 
-    def setUp(self):
-        self.tmpdir = Path(tempfile.mkdtemp())
-        # Ensure that we clean up the tmp directory even when the test
-        # fails or errors out for whatever reason.
-        self.addCleanup(shutil.rmtree, self.tmpdir)
+    @patch('charm.on_config_changed_handler', spec_set=True, autospec=True)
+    def test__it_calls_on_config_changed_handler_correctly(
+        self,
+        mock_on_config_changed_handler
+    ):
+        # Setup
+        harness = Harness(charm.Charm)
+        harness.begin()
 
-    def create_framework(self):
-        framework = Framework(self.tmpdir / "framework.data",
-                              self.tmpdir, CharmMeta(), None)
-        # Ensure that the Framework object is closed and cleaned up even
-        # when the test fails or errors out.
-        self.addCleanup(framework.close)
-
-        return framework
-
-    @patch('charm.framework.FrameworkAdapter', spec_set=True, autospec=True)
-    @patch('charm.interface_http.Client', spec_set=True, autospec=True)
-    def test__init__works_without_a_hitch(self,
-                                          mock_interface_http_client_cls,
-                                          mock_framework_adapter_cls):
         # Exercise
-        charm.Charm(self.create_framework(), None)
+        harness.update_config()
+
+        # Assert
+        self.assertEqual(mock_on_config_changed_handler.call_count, 1)
+
+        args, kwargs = mock_on_config_changed_handler.call_args
+        self.assertIsInstance(args[0], EventBase)
+        self.assertIsInstance(args[1], charm.framework.FrameworkAdapter)
 
 
 class OnConfigChangedHandlerTest(unittest.TestCase):
