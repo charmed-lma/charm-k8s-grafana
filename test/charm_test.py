@@ -30,16 +30,14 @@ from interface_http import (
 
 class CharmTest(unittest.TestCase):
 
-    @patch('charm.on_config_changed_handler', spec_set=True, autospec=True)
     @patch('charm.os', spec_set=True, autospec=True)
     @patch('charm.k8s', spec_set=True, autospec=True)
     @patch('charm.build_juju_unit_status', spec_set=True, autospec=True)
-    def test__it_calls_on_config_changed_handler_correctly(
+    def test__on_config_changed__sets_the_unit_status_correctly(
         self,
         mock_build_juju_unit_status_func,
         mock_k8s_mod,
         mock_os_mod,
-        mock_on_config_changed_handler
     ):
         # Setup
         harness = Harness(charm.Charm)
@@ -56,13 +54,11 @@ class CharmTest(unittest.TestCase):
         harness.update_config()
 
         # Assert
-        # TODO: Assert that Charm.framework.model.unit.status was set
-        #       using the three mock_juju_unit_states members. However,
-        #       given that we are using the test harness here, we should
-        #       not be mocking out the framework object. Another option
-        #       might be to assert if the framework is reaching out to
-        #       Juju correctly but then that would be overreaching this
-        #       unit test's jurisdiction.
+        self.assertEqual(harness.model.unit.status, mock_juju_unit_states[-1])
+        # Not ideal but we use this mock as a proxy for asserting whether
+        # on_config_changed set the unit status 3 times
+        self.assertEqual(mock_build_juju_unit_status_func.call_count,
+                         len(mock_juju_unit_states))
 
 
 class OnConfigChangedHandlerTest(unittest.TestCase):
