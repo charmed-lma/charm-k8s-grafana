@@ -4,8 +4,8 @@ sys.path.append('lib')
 from ops.framework import (
     EventBase,
     EventSource,
-    EventsBase,
     Object,
+    ObjectEvents,
 )
 
 from adapters import (
@@ -73,7 +73,7 @@ class ServerAvailableEvent(EventBase):
         self._server_details = ServerDetails.restore(snapshot)
 
 
-class ClientEvents(EventsBase):
+class ClientEvents(ObjectEvents):
     server_available = EventSource(ServerAvailableEvent)
 
 
