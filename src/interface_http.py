@@ -1,4 +1,5 @@
 import sys
+import logging
 sys.path.append('lib')
 
 from ops.framework import (
@@ -8,10 +9,7 @@ from ops.framework import (
     ObjectEvents,
 )
 
-from adapters import (
-    framework,
-    k8s,
-)
+from adapters import framework
 
 # Ideally, this interface and its tests should be located in its own
 # repository. However, to keep the initial development process simple,
@@ -98,17 +96,13 @@ class Client(Object):
         return self._relation_name
 
     def on_relation_changed(self, event):
-        # TODO: Add some logic here to pick up the right relation in case
-        # the client charm is related to more than one unit. E.g. when the
-        # server is in HA mode.
-        relation = self.adapter.get_relations(self.relation_name)[0]
-        juju_app = relation.app.name
-        juju_model = self.adapter.get_model_name()
+        remote_relation_data = event.relation.data[event.unit]
+        logging.debug(
+            "Received from Prom: %s " % list(remote_relation_data.items())
+        )
 
-        # Fetch the k8s Service resource fronting the server pods
-        service_spec = k8s.get_service_spec(juju_model=juju_model,
-                                            juju_app=juju_app)
-
-        server_details = ServerDetails(host=service_spec.host,
-                                       port=service_spec.port)
+        server_details = ServerDetails(
+            host=remote_relation_data['ingress-address'],
+            port=remote_relation_data['prometheus-port']
+        )
         self.on.server_available.emit(server_details)
