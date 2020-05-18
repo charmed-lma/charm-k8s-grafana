@@ -287,3 +287,8 @@ class ServiceSpecTest(unittest.TestCase):
 
         # Assert
         assert service_spec.port == self.mock_port
+    #
+    # def test_equality(self):
+    #     # Setup
+    #     service_spec1 = ServiceSpec(self.service_spec)
+    #     service_spec2 = ServiceSpec(self.service_spec)

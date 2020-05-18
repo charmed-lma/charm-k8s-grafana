@@ -1,3 +1,4 @@
+import os
 import sys
 sys.path.append('lib')
 
@@ -9,7 +10,6 @@ from ops.framework import (
 )
 
 from adapters import (
-    framework,
     k8s,
 )
 
@@ -84,14 +84,8 @@ class Client(Object):
         super().__init__(charm, relation_name)
         self._relation_name = relation_name
 
-        # Abstract out framework and friends so that this object is not
-        # too tightly coupled with the underlying framework's implementation.
-        # From this point forward, our Client object will only interact with
-        # the adapter and not directly with the framework.
-        self.adapter = framework.FrameworkAdapter(self.framework)
-
-        self.adapter.observe(charm.on[relation_name].relation_changed,
-                             self.on_relation_changed)
+        self.framework.observe(charm.on[relation_name].relation_changed,
+                               self.on_relation_changed)
 
     @property
     def relation_name(self):
@@ -101,9 +95,9 @@ class Client(Object):
         # TODO: Add some logic here to pick up the right relation in case
         # the client charm is related to more than one unit. E.g. when the
         # server is in HA mode.
-        relation = self.adapter.get_relations(self.relation_name)[0]
+        relation = self.framework.model.relations[self.relation_name][0]
         juju_app = relation.app.name
-        juju_model = self.adapter.get_model_name()
+        juju_model = os.environ["JUJU_MODEL_NAME"]
 
         # Fetch the k8s Service resource fronting the server pods
         service_spec = k8s.get_service_spec(juju_model=juju_model,
