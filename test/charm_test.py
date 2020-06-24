@@ -1,7 +1,4 @@
-from pathlib import Path
-import shutil
 import sys
-import tempfile
 import unittest
 from unittest.mock import (
     call,
@@ -12,16 +9,15 @@ from uuid import uuid4
 
 sys.path.append('lib')
 
-from ops.charm import (
-    CharmMeta,
-)
 from ops.framework import (
     EventBase,
-    Framework
 )
 from ops.model import (
     ActiveStatus,
     MaintenanceStatus,
+)
+from ops.testing import (
+    Harness,
 )
 
 sys.path.append('src')
@@ -34,28 +30,27 @@ from interface_http import (
 
 class CharmTest(unittest.TestCase):
 
-    def setUp(self):
-        self.tmpdir = Path(tempfile.mkdtemp())
-        # Ensure that we clean up the tmp directory even when the test
-        # fails or errors out for whatever reason.
-        self.addCleanup(shutil.rmtree, self.tmpdir)
+    def test__init__works_without_a_hitch(self):
+        # Setup
+        harness = Harness(charm.Charm)
 
-    def create_framework(self):
-        framework = Framework(self.tmpdir / "framework.data",
-                              self.tmpdir, CharmMeta(), None)
-        # Ensure that the Framework object is closed and cleaned up even
-        # when the test fails or errors out.
-        self.addCleanup(framework.close)
-
-        return framework
-
-    @patch('charm.framework.FrameworkAdapter', spec_set=True, autospec=True)
-    @patch('charm.interface_http.Client', spec_set=True, autospec=True)
-    def test__init__works_without_a_hitch(self,
-                                          mock_interface_http_client_cls,
-                                          mock_framework_adapter_cls):
         # Exercise
-        charm.Charm(self.create_framework(), None)
+        harness.begin()
+
+        # Assert
+        # None necessary for this test
+
+    def test__on_start__it_sets_the_pod_spec_and_unit_status(self):
+        # Setup
+        harness = Harness(charm.Charm)
+        harness.begin()
+
+        # Exercise
+        harness.charm.on.start.emit()
+
+        # Assert
+        # How to check if framework.model.pod.set_spec() and
+        # framework.model.unit.status were called/set correctly?
 
 
 class OnConfigChangedHandlerTest(unittest.TestCase):

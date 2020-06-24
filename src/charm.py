@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
+from collections import namedtuple
 import sys
+import yaml
 sys.path.append('lib')
 
 from ops.charm import (
@@ -8,7 +10,9 @@ from ops.charm import (
 from ops.main import main
 from ops.model import (
     ActiveStatus,
+    BlockedStatus,
     MaintenanceStatus,
+    ModelError,
 )
 
 import interface_http
@@ -22,6 +26,20 @@ from domain import (
     build_juju_pod_spec,
     build_juju_unit_status,
 )
+
+
+# ERRORS
+
+class ResourceError(ModelError):
+
+    def __init__(self, resource_name, message):
+        super().__init__(resource_name)
+        self.status = BlockedStatus(f'{resource_name}: {message}')
+
+
+# MODELS
+
+ImageMeta = namedtuple('ImageMeta', 'image_path repo_username repo_password')
 
 
 # CHARM
@@ -70,7 +88,7 @@ class Charm(CharmBase):
         on_prom_available_handler(event, self.fw_adapter)
 
     def on_start(self, event):
-        on_start_handler(event, self.fw_adapter)
+        on_start_handler(event, self.framework)
 
 
 # EVENT HANDLERS
@@ -113,18 +131,39 @@ def on_prom_available_handler(event, fw_adapter):
     fw_adapter.set_unit_status(MaintenanceStatus("Configuring pod"))
 
 
-def on_start_handler(event, fw_adapter):
-    if not fw_adapter.am_i_leader():
+def on_start_handler(event, framework):
+    if not framework.model.unit.is_leader():
         return
 
     juju_pod_spec = build_juju_pod_spec(
-        app_name=fw_adapter.get_app_name(),
-        charm_config=fw_adapter.get_config(),
-        image_meta=fw_adapter.get_image_meta('grafana-image'),
+        app_name=framework.model.app.name,
+        charm_config=framework.model.config,
+        image_meta=_fetch_image_meta('grafana-image',
+                                     framework.model.resources),
     )
 
-    fw_adapter.set_pod_spec(juju_pod_spec)
-    fw_adapter.set_unit_status(MaintenanceStatus("Configuring pod"))
+    framework.model.pod.set_spec(juju_pod_spec)
+    framework.model.unit.status = MaintenanceStatus("Configuring pod")
+
+
+def _fetch_image_meta(image_name, resources_repo):
+    path = resources_repo.fetch(image_name)
+    if not path.exists():
+        raise ResourceError(image_name, f'Resource not found at {str(path)})')
+
+    resource_yaml = path.read_text()
+
+    if not resource_yaml:
+        raise ResourceError(image_name, f'Resource unreadable at {str(path)})')
+
+    try:
+        rd = yaml.safe_load(resource_yaml)
+    except yaml.error.YAMLError:
+        raise ResourceError(image_name, f'Invalid YAML at {str(path)})')
+    else:
+        return ImageMeta(image_path=rd['registrypath'],
+                         repo_username=rd['username'],
+                         repo_password=rd['password'])
 
 
 if __name__ == "__main__":
