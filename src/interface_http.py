@@ -43,8 +43,11 @@ class ServerDetails:
 
     @classmethod
     def restore(cls, snapshot):
-        return cls(host=snapshot['server_details.host'],
-                   port=snapshot['server_details.port'])
+        if snapshot:
+            return cls(host=snapshot['server_details.host'],
+                       port=snapshot['server_details.port'])
+        else:
+            return None
 
     def snapshot(self):
         return {

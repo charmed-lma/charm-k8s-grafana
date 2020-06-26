@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
+import logging
 import sys
 sys.path.append('lib')
 
 from ops.charm import (
     CharmBase,
+)
+from ops.framework import (
+    StoredState,
 )
 from ops.main import main
 from ops.model import (
@@ -12,6 +16,7 @@ from ops.model import (
 )
 
 import interface_http
+import interface_mysql
 
 from adapters import (
     framework,
@@ -23,6 +28,8 @@ from domain import (
     build_juju_unit_status,
 )
 
+log = logging.getLogger(__name__)
+
 
 # CHARM
 
@@ -31,6 +38,7 @@ from domain import (
 # of which is further discussed below (just before the delegator definitions)
 
 class Charm(CharmBase):
+    state = StoredState()
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -40,14 +48,22 @@ class Charm(CharmBase):
         # From this point forward, our Charm object will only interact with the
         # adapter and not directly with the framework.
         self.fw_adapter = framework.FrameworkAdapter(self.framework)
+
         self.prometheus_client = interface_http.Client(self, 'prometheus-api')
+        self.mysql = interface_mysql.MySQLInterface(self, 'mysql')
+
+        self.state.set_default(
+            prometheus_server_details=None,
+            mysql_server_details=None,
+        )
 
         # Bind event handlers to events
         event_handler_bindings = {
             self.on.start: self.on_start,
             self.on.config_changed: self.on_config_changed,
             self.on.upgrade_charm: self.on_start,
-            self.prometheus_client.on.server_available: self.on_prom_available
+            self.prometheus_client.on.server_available: self.on_prom_available,
+            self.mysql.on.new_relation: self.on_mysql_new_relation
         }
         for event, delegator in event_handler_bindings.items():
             self.fw_adapter.observe(event, delegator)
@@ -66,8 +82,30 @@ class Charm(CharmBase):
     def on_config_changed(self, event):
         on_config_changed_handler(event, self.fw_adapter)
 
+    def on_mysql_new_relation(self, event):
+        log.debug("Received event {}".format(event))
+
+        server_details = event.server_details
+        log.debug("Received server_details {}:{}".format(type(server_details),
+                                                         server_details))
+        log.debug("Snapshotting to StoredState")
+        self.state.mysql_server_details = server_details.snapshot()
+
+        log.debug("Calling update_grafana_configuration")
+        on_server_new_relation_handler(event, self.state, self.fw_adapter)
+
     def on_prom_available(self, event):
-        on_prom_available_handler(event, self.fw_adapter)
+        log.debug("Received event {}".format(event))
+
+        server_details = event.server_details
+        log.debug("Received server_details {}:{}".format(type(server_details),
+                                                         server_details))
+
+        log.debug("Snapshotting to StoredState")
+        self.state.prometheus_server_details = server_details.snapshot()
+
+        log.debug("Calling update_grafana_configuration")
+        on_server_new_relation_handler(event, self.state, self.fw_adapter)
 
     def on_start(self, event):
         on_start_handler(event, self.fw_adapter)
@@ -98,15 +136,22 @@ def on_config_changed_handler(event, fw_adapter):
         pod_is_ready = isinstance(juju_unit_status, ActiveStatus)
 
 
-def on_prom_available_handler(event, fw_adapter):
+def on_server_new_relation_handler(event, state, fw_adapter):
+    log.debug("Got event {}".format(event))
     if not fw_adapter.am_i_leader():
         return
+
+    mysql_details = \
+        interface_mysql.MySQLServerDetails.restore(state.mysql_server_details)
+    prometheus_details = \
+        interface_http.ServerDetails.restore(state.prometheus_server_details)
 
     juju_pod_spec = build_juju_pod_spec(
         app_name=fw_adapter.get_app_name(),
         charm_config=fw_adapter.get_config(),
         image_meta=fw_adapter.get_image_meta('grafana-image'),
-        prometheus_server_details=event.server_details,
+        mysql_server_details=mysql_details,
+        prometheus_server_details=prometheus_details,
     )
 
     fw_adapter.set_pod_spec(juju_pod_spec)

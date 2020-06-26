@@ -2,17 +2,23 @@ name: "grafana"
 display-name: "Grafana"
 summary: "Grafana Operator for Kubernetes"
 maintainers:
-    - "Mark Maglana <mark.maglana@canonical.com>"
+  - "Mark Maglana <mark.maglana@canonical.com>"
 description: |
   Deploys and operates Grafana on Kubernetes
 tags:
-    - "application"
+  - "application"
 series:
-    - "kubernetes"
+  - "kubernetes"
 requires:
   prometheus-api:
     interface: prometheus-http-api
+  mysql:
+    interface: mysql
 resources:
-    grafana-image:
-        type: oci-image
-        description: "Image used for the Grafana pod."
+  grafana-image:
+    type: oci-image
+    description: "Image used for the Grafana pod."
+storage:
+  sqlitedb:
+    type: filesystem
+    location: /var/lib/grafana
