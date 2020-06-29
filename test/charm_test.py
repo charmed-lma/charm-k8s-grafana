@@ -1,3 +1,4 @@
+import random
 import sys
 import unittest
 from unittest.mock import (
@@ -9,7 +10,11 @@ from uuid import uuid4
 
 sys.path.append('lib')
 
+from ops.charm import (
+    ConfigChangedEvent,
+)
 from ops.framework import (
+    BoundStoredState,
     EventBase,
     StoredState,
 )
@@ -26,10 +31,20 @@ import adapters
 import charm
 from interface_http import (
     ServerAvailableEvent,
+    ServerDetails as PostgresServerDetails,
+)
+from interface_mysql import (
+    MySQLServerDetails,
+    NewMySQLRelationEvent,
 )
 
 
 class CharmTest(unittest.TestCase):
+
+    def setUp(self):
+        # Setup
+        self.harness = Harness(charm.Charm)
+        self.harness.begin()
 
     def test__init__works_without_a_hitch(self):
         # Setup
@@ -37,6 +52,71 @@ class CharmTest(unittest.TestCase):
 
         # Exercise
         harness.begin()
+
+    def test__mysql_on_new_relation_calls_handler(self):
+        with patch.object(charm, 'on_server_new_relation_handler',
+                          spect_set=True) as mocked_on_new_server_relation_handler:
+            # Setup
+            server_details = MySQLServerDetails(dict(
+                host=str(uuid4()),
+                port=random.randint(1, 65535),
+                database=str(uuid4()),
+                user=str(uuid4()),
+                password=str(uuid4()),
+            ))
+
+            # Exercise
+            self.harness.charm.mysql.on.new_relation.emit(server_details)
+
+            # Assert
+            assert mocked_on_new_server_relation_handler.call_count == 1
+
+            args, kwargs = mocked_on_new_server_relation_handler.call_args
+            assert isinstance(args[0], NewMySQLRelationEvent)
+            assert hasattr(args[0], 'server_details')
+            assert args[0].server_details.address == server_details.address
+            assert args[0].server_details.username == server_details.username
+            assert args[0].server_details.database == server_details.database
+            assert args[0].server_details.password == server_details.password
+            assert isinstance(args[1], BoundStoredState)
+            assert isinstance(args[2], adapters.framework.FrameworkAdapter)
+
+    def test__on_config_changed_calls_handler(self):
+        with patch.object(charm, 'on_config_changed_handler',
+                          spect_set=True) as mocked_on_config_changed_handler:
+            # Exercise
+            self.harness.update_config()
+
+            # Assert
+            assert mocked_on_config_changed_handler.call_count == 1
+
+            args, kwargs = mocked_on_config_changed_handler.call_args
+            assert isinstance(args[0], ConfigChangedEvent)
+            assert isinstance(args[1], adapters.framework.FrameworkAdapter)
+
+    def test__prometheus_client_on_new_server_available_calls_handler(self):
+        with patch.object(charm, 'on_server_new_relation_handler',
+                          spect_set=True) as mocked_on_new_server_relation_handler:
+            # Setup
+            server_details = PostgresServerDetails(
+                host=str(uuid4()),
+                port=random.randint(1, 65535),
+            )
+
+            # Exercise
+            self.harness.charm.prometheus_client.on.server_available.emit(
+                server_details)
+
+            # Assert
+            assert mocked_on_new_server_relation_handler.call_count == 1
+
+            args, kwargs = mocked_on_new_server_relation_handler.call_args
+            assert isinstance(args[0], ServerAvailableEvent)
+            assert hasattr(args[0], 'server_details')
+            assert args[0].server_details.host == server_details.host
+            assert args[0].server_details.port == server_details.port
+            assert isinstance(args[1], BoundStoredState)
+            assert isinstance(args[2], adapters.framework.FrameworkAdapter)
 
 
 class OnConfigChangedHandlerTest(unittest.TestCase):
