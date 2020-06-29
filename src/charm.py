@@ -59,11 +59,12 @@ class Charm(CharmBase):
 
         # Bind event handlers to events
         event_handler_bindings = {
-            self.on.start: self.on_start,
+            self.mysql.on.new_relation: self.on_mysql_new_relation,
             self.on.config_changed: self.on_config_changed,
+            self.on.start: self.on_start,
+            self.on.update_status: self.on_update_status,
             self.on.upgrade_charm: self.on_start,
             self.prometheus_client.on.server_available: self.on_prom_available,
-            self.mysql.on.new_relation: self.on_mysql_new_relation
         }
         for event, delegator in event_handler_bindings.items():
             self.fw_adapter.observe(event, delegator)
@@ -110,6 +111,9 @@ class Charm(CharmBase):
     def on_start(self, event):
         on_start_handler(event, self.fw_adapter)
 
+    def on_update_status(self, event):
+        on_update_status_handler(event, self.fw_adapter)
+
 
 # EVENT HANDLERS
 
@@ -121,19 +125,8 @@ class Charm(CharmBase):
 # coordinating domain models and services.
 
 def on_config_changed_handler(event, fw_adapter):
-    juju_model = fw_adapter.get_model_name()
-    juju_app = fw_adapter.get_app_name()
-    juju_unit = fw_adapter.get_unit_name()
-
-    pod_is_ready = False
-
-    while not pod_is_ready:
-        k8s_pod_status = k8s.get_pod_status(juju_model=juju_model,
-                                            juju_app=juju_app,
-                                            juju_unit=juju_unit)
-        juju_unit_status = build_juju_unit_status(k8s_pod_status)
-        fw_adapter.set_unit_status(juju_unit_status)
-        pod_is_ready = isinstance(juju_unit_status, ActiveStatus)
+    log.debug("config_changed event detected")
+    update_unit_status(fw_adapter)
 
 
 def on_server_new_relation_handler(event, state, fw_adapter):
@@ -154,6 +147,7 @@ def on_server_new_relation_handler(event, state, fw_adapter):
         prometheus_server_details=prometheus_details,
     )
 
+    log.info("Updating juju podspec with new backend details")
     fw_adapter.set_pod_spec(juju_pod_spec)
     fw_adapter.set_unit_status(MaintenanceStatus("Configuring pod"))
 
@@ -170,6 +164,28 @@ def on_start_handler(event, fw_adapter):
 
     fw_adapter.set_pod_spec(juju_pod_spec)
     fw_adapter.set_unit_status(MaintenanceStatus("Configuring pod"))
+
+
+def on_update_status_handler(event, fw_adapter):
+    log.debug("update_status event detected")
+    update_unit_status(fw_adapter)
+
+
+def update_unit_status(fw_adapter):
+    log.debug("Initializing update_unit_status")
+    juju_model = fw_adapter.get_model_name()
+    juju_app = fw_adapter.get_app_name()
+    juju_unit = fw_adapter.get_unit_name()
+
+    pod_is_ready = False
+
+    while not pod_is_ready:
+        k8s_pod_status = k8s.get_pod_status(juju_model=juju_model,
+                                            juju_app=juju_app,
+                                            juju_unit=juju_unit)
+        juju_unit_status = build_juju_unit_status(k8s_pod_status)
+        fw_adapter.set_unit_status(juju_unit_status)
+        pod_is_ready = isinstance(juju_unit_status, ActiveStatus)
 
 
 if __name__ == "__main__":

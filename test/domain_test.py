@@ -34,7 +34,7 @@ class BuildJujuPodSpecTest(unittest.TestCase):
                 host=str(uuid4()),
                 port=random.randint(1, 65535),
                 database=str(uuid4()),
-                username=str(uuid4()),
+                user=str(uuid4()),
                 password=str(uuid4()),
             )
         )

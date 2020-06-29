@@ -1,3 +1,4 @@
+import logging
 import textwrap
 import sys
 sys.path.append('lib')
@@ -6,6 +7,8 @@ from ops.model import (
     ActiveStatus,
     MaintenanceStatus,
 )
+
+log = logging.getLogger(__name__)
 
 
 # DOMAIN SERVICES
@@ -113,12 +116,16 @@ def build_juju_pod_spec(app_name,
 
 def build_juju_unit_status(pod_status):
     if pod_status.is_unknown:
+        log.debug("k8s pod status is unknown")
         unit_status = MaintenanceStatus("Waiting for pod to appear")
     elif not pod_status.is_running:
+        log.debug("k8s pod status is running")
         unit_status = MaintenanceStatus("Pod is starting")
     elif pod_status.is_running and not pod_status.is_ready:
+        log.debug("k8s pod status is running but not ready")
         unit_status = MaintenanceStatus("Pod is getting ready")
     elif pod_status.is_running and pod_status.is_ready:
+        log.debug("k8s pod status is running and ready")
         unit_status = ActiveStatus()
 
     return unit_status
