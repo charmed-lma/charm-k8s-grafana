@@ -1,0 +1,5 @@
+pyaml
+pytest
+pytest-cov
+pytest-randomly
+flake8
