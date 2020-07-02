@@ -1,7 +1,5 @@
-from pathlib import Path
-import shutil
+import random
 import sys
-import tempfile
 import unittest
 from unittest.mock import (
     call,
@@ -13,15 +11,19 @@ from uuid import uuid4
 sys.path.append('lib')
 
 from ops.charm import (
-    CharmMeta,
+    ConfigChangedEvent,
 )
 from ops.framework import (
+    BoundStoredState,
     EventBase,
-    Framework
+    StoredState,
 )
 from ops.model import (
     ActiveStatus,
     MaintenanceStatus,
+)
+from ops.testing import (
+    Harness,
 )
 
 sys.path.append('src')
@@ -29,33 +31,92 @@ import adapters
 import charm
 from interface_http import (
     ServerAvailableEvent,
+    ServerDetails as PostgresServerDetails,
+)
+from interface_mysql import (
+    MySQLServerDetails,
+    NewMySQLRelationEvent,
 )
 
 
 class CharmTest(unittest.TestCase):
 
     def setUp(self):
-        self.tmpdir = Path(tempfile.mkdtemp())
-        # Ensure that we clean up the tmp directory even when the test
-        # fails or errors out for whatever reason.
-        self.addCleanup(shutil.rmtree, self.tmpdir)
+        # Setup
+        self.harness = Harness(charm.Charm)
+        self.harness.begin()
 
-    def create_framework(self):
-        framework = Framework(self.tmpdir / "framework.data",
-                              self.tmpdir, CharmMeta(), None)
-        # Ensure that the Framework object is closed and cleaned up even
-        # when the test fails or errors out.
-        self.addCleanup(framework.close)
+    def test__init__works_without_a_hitch(self):
+        # Setup
+        harness = Harness(charm.Charm)
 
-        return framework
-
-    @patch('charm.framework.FrameworkAdapter', spec_set=True, autospec=True)
-    @patch('charm.interface_http.Client', spec_set=True, autospec=True)
-    def test__init__works_without_a_hitch(self,
-                                          mock_interface_http_client_cls,
-                                          mock_framework_adapter_cls):
         # Exercise
-        charm.Charm(self.create_framework(), None)
+        harness.begin()
+
+    def test__mysql_on_new_relation_calls_handler(self):
+        with patch.object(charm, 'on_server_new_relation_handler',
+                          spect_set=True) as mocked_on_new_server_relation_handler:
+            # Setup
+            server_details = MySQLServerDetails(dict(
+                host=str(uuid4()),
+                port=random.randint(1, 65535),
+                database=str(uuid4()),
+                user=str(uuid4()),
+                password=str(uuid4()),
+            ))
+
+            # Exercise
+            self.harness.charm.mysql.on.new_relation.emit(server_details)
+
+            # Assert
+            assert mocked_on_new_server_relation_handler.call_count == 1
+
+            args, kwargs = mocked_on_new_server_relation_handler.call_args
+            assert isinstance(args[0], NewMySQLRelationEvent)
+            assert hasattr(args[0], 'server_details')
+            assert args[0].server_details.address == server_details.address
+            assert args[0].server_details.username == server_details.username
+            assert args[0].server_details.database == server_details.database
+            assert args[0].server_details.password == server_details.password
+            assert isinstance(args[1], BoundStoredState)
+            assert isinstance(args[2], adapters.framework.FrameworkAdapter)
+
+    def test__on_config_changed_calls_handler(self):
+        with patch.object(charm, 'on_config_changed_handler',
+                          spect_set=True) as mocked_on_config_changed_handler:
+            # Exercise
+            self.harness.update_config()
+
+            # Assert
+            assert mocked_on_config_changed_handler.call_count == 1
+
+            args, kwargs = mocked_on_config_changed_handler.call_args
+            assert isinstance(args[0], ConfigChangedEvent)
+            assert isinstance(args[1], adapters.framework.FrameworkAdapter)
+
+    def test__prometheus_client_on_new_server_available_calls_handler(self):
+        with patch.object(charm, 'on_server_new_relation_handler',
+                          spect_set=True) as mocked_on_new_server_relation_handler:
+            # Setup
+            server_details = PostgresServerDetails(
+                host=str(uuid4()),
+                port=random.randint(1, 65535),
+            )
+
+            # Exercise
+            self.harness.charm.prometheus_client.on.server_available.emit(
+                server_details)
+
+            # Assert
+            assert mocked_on_new_server_relation_handler.call_count == 1
+
+            args, kwargs = mocked_on_new_server_relation_handler.call_args
+            assert isinstance(args[0], ServerAvailableEvent)
+            assert hasattr(args[0], 'server_details')
+            assert args[0].server_details.host == server_details.host
+            assert args[0].server_details.port == server_details.port
+            assert isinstance(args[1], BoundStoredState)
+            assert isinstance(args[2], adapters.framework.FrameworkAdapter)
 
 
 class OnConfigChangedHandlerTest(unittest.TestCase):
@@ -91,10 +152,16 @@ class OnConfigChangedHandlerTest(unittest.TestCase):
         ]
 
 
-class OnPromAvailableHandlerTest(unittest.TestCase):
+class OnServerNewRelationHandlerTest(unittest.TestCase):
 
     @patch('charm.build_juju_pod_spec', spec_set=True, autospec=True)
+    @patch('charm.interface_mysql.MySQLServerDetails',
+           spec_set=True, autospec=True)
+    @patch('charm.interface_http.ServerDetails',
+           spec_set=True, autospec=True)
     def test__it_updates_the_juju_pod_spec(self,
+                                           mock_prometheus_server_details_cls,
+                                           mock_mysql_server_details_cls,
                                            mock_build_juju_pod_spec_func):
         # Setup
         mock_fw_adapter_cls = \
@@ -106,8 +173,20 @@ class OnPromAvailableHandlerTest(unittest.TestCase):
         mock_event_cls = create_autospec(ServerAvailableEvent, spec_set=True)
         mock_event = mock_event_cls.return_value
 
+        mock_state = create_autospec(StoredState).return_value
+        mock_state.prometheus_server_details = {
+            str(uuid4()): str(uuid4())
+        }
+        mock_prometheus_server_details = \
+            mock_prometheus_server_details_cls.restore.return_value
+        mock_state.mysql_server_details = {
+            str(uuid4()): str(uuid4())
+        }
+        mock_mysql_server_details = \
+            mock_mysql_server_details_cls.restore.return_value
+
         # Exercise
-        charm.on_prom_available_handler(mock_event, mock_fw)
+        charm.on_server_new_relation_handler(mock_event, mock_state, mock_fw)
 
         # Assert
         assert mock_build_juju_pod_spec_func.call_count == 1
@@ -115,7 +194,8 @@ class OnPromAvailableHandlerTest(unittest.TestCase):
             call(app_name=mock_fw.get_app_name.return_value,
                  charm_config=mock_fw.get_config.return_value,
                  image_meta=mock_fw.get_image_meta.return_value,
-                 prometheus_server_details=mock_event.server_details)
+                 prometheus_server_details=mock_prometheus_server_details,
+                 mysql_server_details=mock_mysql_server_details)
 
         assert mock_fw.set_pod_spec.call_count == 1
         assert mock_fw.set_pod_spec.call_args == \

@@ -41,21 +41,26 @@ juju deploy . --resource grafana-image=grafana/grafana:latest
 Wait until `juju status` shows that the grafana app has a status of active.
 
 
-Preview the GUI
----------------
+Preview the Grafana GUI
+-----------------------
+
+Add the following entry to your machine's `/etc/hosts` file:
+
+    <microk8s-host-ip>	grafana.local
 
 Run:
 
-    kubectl -n lma port-forward svc/grafana 3000:3000
+    juju config grafana juju-external-hostname=grafana.local
+    juju expose grafana
 
-The above assumes you're using the default value for `advertised-port`. If
-you customized this value from 3000 to some other value, change the command
-above accordingly.
+Now browse to http://grafana.local.
 
-Now browse to http://localhost:3000/
-
-For more info on getting started with Grafana see [its official getting
-started guide](https://prometheus.io/docs/visualization/grafana/).
+> A NOTE ABOUT THE EXTERNAL HOSTNAME: If you are using a k8s distribution
+> other than microk8s, you need to ensure that there is an LB sitting in
+> front of the k8s nodes and that you use that LB's IP address in place of
+> `<microk8s-host-ip>`. Alternatively, instead of adding a static entry in
+> `/etc/hosts` such as above, you may use an FQDN as the value to
+> `juju-external-hostname`.
 
 
 Use Prometheus as a Datasource
