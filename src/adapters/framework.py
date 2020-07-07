@@ -36,7 +36,7 @@ class ResourceError(ModelError):
 
 # SERVICES
 
-def _fetch_image_meta(image_name, resources_repo):
+def fetch_image_meta(image_name, resources_repo):
     path = resources_repo.fetch(image_name)
     if not path.exists():
         raise ResourceError(image_name, f'Resource not found at {str(path)})')
