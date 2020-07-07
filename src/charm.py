@@ -19,6 +19,7 @@ import interface_http
 import interface_mysql
 
 from adapters import (
+    framework,
     k8s,
 )
 
@@ -52,7 +53,7 @@ class Charm(CharmBase):
 
         # Bind event handlers to events
         event_handler_bindings = {
-            self.mysql.on.new_relation: self.on_mysql_new_relation,
+            self.mysql.on.new_relation: self._on_mysql_new_relation,
             self.on.config_changed: self.on_config_changed,
             self.on.start: self.on_start,
             self.on.update_status: self.on_update_status,
@@ -76,7 +77,7 @@ class Charm(CharmBase):
     def on_config_changed(self, event):
         on_config_changed_handler(event, self.fw_adapter)
 
-    def on_mysql_new_relation(self, event):
+    def _on_mysql_new_relation(self, event):
         log.debug("Received event {}".format(event))
 
         server_details = event.server_details
@@ -86,7 +87,14 @@ class Charm(CharmBase):
         self.state.mysql_server_details = server_details.snapshot()
 
         log.debug("Calling update_grafana_configuration")
-        on_server_new_relation_handler(event, self.state, self.fw_adapter)
+        _on_server_new_relation_handler(
+            event=event,
+            app_name=self.model.app.name,
+            unit_is_leader=self.model.unit.is_leader(),
+            mysql_server_details=self.state.mysql_server_details,
+            prometheus_server_details=self.state.prometheus_server_details,
+            set_pod_spec_func=self.model.pod.set_spec,
+            set_unit_status_func=_get_unit_status_setter(self.framework))
 
     def on_prom_available(self, event):
         log.debug("Received event {}".format(event))
@@ -122,27 +130,33 @@ def on_config_changed_handler(event, fw_adapter):
     update_unit_status(fw_adapter)
 
 
-def on_server_new_relation_handler(event, state, fw_adapter):
+def _on_server_new_relation_handler(
+        event,
+        app_name,
+        unit_is_leader,
+        mysql_server_details,
+        prometheus_server_details,
+        set_pod_spec_func,
+        set_unit_status_func):
     log.debug("Got event {}".format(event))
-    if not fw_adapter.am_i_leader():
+    if not unit_is_leader:
         return
 
     mysql_details = \
-        interface_mysql.MySQLServerDetails.restore(state.mysql_server_details)
+        interface_mysql.MySQLServerDetails.restore(mysql_server_details)
     prometheus_details = \
-        interface_http.ServerDetails.restore(state.prometheus_server_details)
+        interface_http.ServerDetails.restore(prometheus_server_details)
 
     juju_pod_spec = build_juju_pod_spec(
-        app_name=fw_adapter.get_app_name(),
-        charm_config=fw_adapter.get_config(),
-        image_meta=fw_adapter.get_image_meta('grafana-image'),
+        app_name=app_name,
+        image_meta=framework.get_image_meta('grafana-image'),
         mysql_server_details=mysql_details,
         prometheus_server_details=prometheus_details,
     )
 
     log.info("Updating juju podspec with new backend details")
-    fw_adapter.set_pod_spec(juju_pod_spec)
-    fw_adapter.set_unit_status(MaintenanceStatus("Configuring pod"))
+    set_pod_spec_func(juju_pod_spec)
+    set_unit_status_func(MaintenanceStatus("Configuring pod"))
 
 
 def on_start_handler(event, fw_adapter):
@@ -179,6 +193,14 @@ def update_unit_status(fw_adapter):
         juju_unit_status = build_juju_unit_status(k8s_pod_status)
         fw_adapter.set_unit_status(juju_unit_status)
         pod_is_ready = isinstance(juju_unit_status, ActiveStatus)
+
+
+# HELPERS
+
+def _get_unit_status_setter(framework):
+    def set_unit_status(state_obj):
+        framework.model.unit.status = state_obj
+    return set_unit_status
 
 
 if __name__ == "__main__":

@@ -17,11 +17,10 @@ log = logging.getLogger(__name__)
 # simple values or data structures and produce new values from them.
 
 def build_juju_pod_spec(app_name,
-                        charm_config,
                         image_meta,
                         prometheus_server_details=None,
                         mysql_server_details=None):
-    advertised_port = charm_config['advertised-port']
+    advertised_port = 3000
 
     spec = {
         'containers': [{

@@ -53,33 +53,27 @@ class CharmTest(unittest.TestCase):
         # Exercise
         harness.begin()
 
-    def test__mysql_on_new_relation_calls_handler(self):
-        with patch.object(charm, 'on_server_new_relation_handler',
-                          spect_set=True) as mocked_on_new_server_relation_handler:
-            # Setup
-            server_details = MySQLServerDetails(dict(
-                host=str(uuid4()),
-                port=random.randint(1, 65535),
-                database=str(uuid4()),
-                user=str(uuid4()),
-                password=str(uuid4()),
-            ))
+    @patch('charm._on_server_new_relation_handler', spec_set=True, autospec=True)
+    def test__mysql_on_new_relation__it_calls_the_handler_with_mysql_server_details(
+            self,
+            mocked_on_server_new_relation_handler):
+        # Setup
+        server_details = MySQLServerDetails(dict(
+            host=str(uuid4()),
+            port=random.randint(1, 65535),
+            database=str(uuid4()),
+            user=str(uuid4()),
+            password=str(uuid4()),
+        ))
 
-            # Exercise
-            self.harness.charm.mysql.on.new_relation.emit(server_details)
+        # Exercise
+        self.harness.charm.mysql.on.new_relation.emit(server_details)
 
-            # Assert
-            assert mocked_on_new_server_relation_handler.call_count == 1
+        # Assert
+        assert mocked_on_server_new_relation_handler.call_count == 1
 
-            args, kwargs = mocked_on_new_server_relation_handler.call_args
-            assert isinstance(args[0], NewMySQLRelationEvent)
-            assert hasattr(args[0], 'server_details')
-            assert args[0].server_details.address == server_details.address
-            assert args[0].server_details.username == server_details.username
-            assert args[0].server_details.database == server_details.database
-            assert args[0].server_details.password == server_details.password
-            assert isinstance(args[1], BoundStoredState)
-            assert isinstance(args[2], adapters.framework.FrameworkAdapter)
+        args, kwargs = mocked_on_server_new_relation_handler.call_args
+        assert kwargs['mysql_server_details'] == server_details.snapshot()
 
     def test__on_config_changed_calls_handler(self):
         with patch.object(charm, 'on_config_changed_handler',
