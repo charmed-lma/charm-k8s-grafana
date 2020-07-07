@@ -93,7 +93,6 @@ class Charm(CharmBase):
 
         log.debug("Calling update_grafana_configuration")
         _on_server_new_relation_handler(
-            event=event,
             app_name=self.model.app.name,
             unit_is_leader=self.model.unit.is_leader(),
             mysql_server_details=self.state.mysql_server_details,
@@ -143,14 +142,12 @@ def _on_config_changed_handler(
 
 
 def _on_server_new_relation_handler(
-        event,
         app_name,
         unit_is_leader,
         mysql_server_details,
         prometheus_server_details,
         set_pod_spec_func,
         set_unit_status_func):
-    log.debug("Got event {}".format(event))
     if not unit_is_leader:
         return
 

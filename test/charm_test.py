@@ -54,9 +54,11 @@ class CharmTest(unittest.TestCase):
         harness.begin()
 
     @patch('charm._on_server_new_relation_handler', spec_set=True, autospec=True)
+    @patch('charm._get_unit_status_setter', spec_set=True, autospec=True)
     def test__mysql_on_new_relation__it_calls_the_handler_with_mysql_server_details(
             self,
-            mocked_on_server_new_relation_handler):
+            mock_get_unit_status_setter_func,
+            mock_on_server_new_relation_handler):
         # Setup
         server_details = MySQLServerDetails(dict(
             host=str(uuid4()),
@@ -65,15 +67,22 @@ class CharmTest(unittest.TestCase):
             user=str(uuid4()),
             password=str(uuid4()),
         ))
+        harness = self.harness
 
         # Exercise
-        self.harness.charm.mysql.on.new_relation.emit(server_details)
+        harness.charm.mysql.on.new_relation.emit(server_details)
 
         # Assert
-        assert mocked_on_server_new_relation_handler.call_count == 1
+        assert mock_on_server_new_relation_handler.call_count == 1
 
-        args, kwargs = mocked_on_server_new_relation_handler.call_args
-        assert kwargs['mysql_server_details'] == server_details.snapshot()
+        assert mock_on_server_new_relation_handler.call_args == call(
+            app_name=harness.charm.model.app.name,
+            unit_is_leader=harness.charm.model.unit.is_leader(),
+            mysql_server_details=server_details.snapshot(),
+            prometheus_server_details=harness.charm.state.prometheus_server_details,
+            set_pod_spec_func=harness.charm.model.pod.set_spec,
+            set_unit_status_func=mock_get_unit_status_setter_func.return_value
+        )
 
     @patch('charm._on_config_changed_handler', spec_set=True, autospec=True)
     @patch('charm._get_unit_status_setter', spec_set=True, autospec=True)
