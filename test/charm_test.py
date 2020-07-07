@@ -75,18 +75,23 @@ class CharmTest(unittest.TestCase):
         args, kwargs = mocked_on_server_new_relation_handler.call_args
         assert kwargs['mysql_server_details'] == server_details.snapshot()
 
-    def test__on_config_changed_calls_handler(self):
-        with patch.object(charm, 'on_config_changed_handler',
-                          spect_set=True) as mocked_on_config_changed_handler:
-            # Exercise
-            self.harness.update_config()
+    @patch('charm._on_config_changed_handler', spec_set=True, autospec=True)
+    @patch('charm._get_unit_status_setter', spec_set=True, autospec=True)
+    def test__on_config_changed__calls_on_config_changed_handler(
+            self,
+            mock_get_unit_status_setter_func,
+            mocked_on_config_changed_handler):
+        # Exercise
+        self.harness.update_config()
 
-            # Assert
-            assert mocked_on_config_changed_handler.call_count == 1
-
-            args, kwargs = mocked_on_config_changed_handler.call_args
-            assert isinstance(args[0], ConfigChangedEvent)
-            assert isinstance(args[1], adapters.framework.FrameworkAdapter)
+        # Assert
+        assert mocked_on_config_changed_handler.call_count == 1
+        assert mocked_on_config_changed_handler.call_args == call(
+            model_name=self.harness.charm.model.name,
+            app_name=self.harness.charm.model.app.name,
+            unit_name=self.harness.charm.model.unit.name,
+            set_unit_status_func=mock_get_unit_status_setter_func.return_value
+        )
 
     def test__prometheus_client_on_new_server_available_calls_handler(self):
         with patch.object(charm, 'on_server_new_relation_handler',
