@@ -9,7 +9,6 @@ from ops.framework import (
 )
 
 from adapters import (
-    framework,
     k8s,
 )
 
@@ -87,14 +86,8 @@ class Client(Object):
         super().__init__(charm, relation_name)
         self._relation_name = relation_name
 
-        # Abstract out framework and friends so that this object is not
-        # too tightly coupled with the underlying framework's implementation.
-        # From this point forward, our Client object will only interact with
-        # the adapter and not directly with the framework.
-        self.adapter = framework.FrameworkAdapter(self.framework)
-
-        self.adapter.observe(charm.on[relation_name].relation_changed,
-                             self.on_relation_changed)
+        self.framework.observe(charm.on[relation_name].relation_changed,
+                               self.on_relation_changed)
 
     @property
     def relation_name(self):
