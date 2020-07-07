@@ -19,7 +19,6 @@ import interface_http
 import interface_mysql
 
 from adapters import (
-    framework,
     k8s,
 )
 
@@ -43,12 +42,6 @@ class Charm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
 
-        # Abstract out framework and friends so that this object is not
-        # too tightly coupled with the underlying framework's implementation.
-        # From this point forward, our Charm object will only interact with the
-        # adapter and not directly with the framework.
-        self.fw_adapter = framework.FrameworkAdapter(self.framework)
-
         self.prometheus_client = interface_http.Client(self, 'prometheus-api')
         self.mysql = interface_mysql.MySQLInterface(self, 'mysql')
 
@@ -67,7 +60,7 @@ class Charm(CharmBase):
             self.prometheus_client.on.server_available: self.on_prom_available,
         }
         for event, delegator in event_handler_bindings.items():
-            self.fw_adapter.observe(event, delegator)
+            self.framework.observe(event, delegator)
 
     # DELEGATORS
 
